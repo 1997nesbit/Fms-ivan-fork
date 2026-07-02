@@ -32,3 +32,18 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Project documents — not tracked in version control
+*.xlsx
+*.xlsx.bak
+*.pdf
+Workshop_Management_System_BRD.*
+Workshop_Workflows.docx
+Workshop_Flowchart.pdf
+FMS_Daily_Tracking_Checklist.*
+# Keep only the operations flow manual
+*.docx
+!FMS_Operations_Flow_Manual.docx
+
+# Claude internal
+.claude/

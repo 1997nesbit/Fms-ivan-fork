@@ -1,29 +1,30 @@
 "use client"
 
-import { Store } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { useState } from "react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ShowroomInventoryScreen } from "@/components/shop/showroom-inventory-screen"
+import { CatalogueScreen } from "@/components/shop/catalogue-screen"
+
+type ShopTab = "inventory" | "catalogue"
 
 export function ShopFrontDeskPortal() {
+  const [tab, setTab] = useState<ShopTab>("inventory")
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-          <Store className="size-5" />
-        </span>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">
-            Showroom Inventory
-          </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
-            View and manage your branch&apos;s showroom furniture sets and transfer requests.
-          </p>
-        </div>
-      </div>
-      <Card>
-        <CardContent className="py-16 text-center text-muted-foreground">
-          Coming soon — API integration in progress.
-        </CardContent>
-      </Card>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as ShopTab)}
+        className="gap-0"
+      >
+        <TabsList className="h-auto flex-wrap">
+          <TabsTrigger value="inventory">Showroom Stock</TabsTrigger>
+          <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {tab === "inventory" && <ShowroomInventoryScreen />}
+      {tab === "catalogue" && <CatalogueScreen />}
     </div>
   )
 }

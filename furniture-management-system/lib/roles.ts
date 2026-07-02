@@ -53,8 +53,8 @@ export const roles: RoleConfig[] = [
     nav: [
       { label: "Overview", available: true, href: "/director" },
       { label: "Shop", available: true, href: "/director/shop" },
-      { label: "Revenue", available: false },
-      { label: "Branches", available: false },
+      { label: "Revenue", available: true, href: "/director/revenue" },
+      { label: "Branches", available: true, href: "/director/branches" },
     ],
   },
   {
@@ -70,8 +70,8 @@ export const roles: RoleConfig[] = [
         available: true,
         href: "/operations/showroom-stock",
       },
-      { label: "Scheduling", available: false },
-      { label: "Assignments", available: false },
+      { label: "Scheduling", available: true, href: "/operations/scheduling" },
+      { label: "Assignments", available: true, href: "/operations/assignments" },
     ],
   },
   {
@@ -93,10 +93,10 @@ export const roles: RoleConfig[] = [
     href: "/stock-keeper",
     icon: Boxes,
     nav: [
-      { label: "Overview", available: true },
-      { label: "Inventory", available: false },
-      { label: "Issue Materials", available: false },
-      { label: "Reorders", available: false },
+      { label: "Portal", available: true, href: "/stock-keeper" },
+      { label: "Inventory", available: true, href: "/stock-keeper/inventory" },
+      { label: "Issue Materials", available: true, href: "/stock-keeper/issue-materials" },
+      { label: "Reorder Requests", available: true, href: "/stock-keeper/reorders" },
     ],
   },
 ]

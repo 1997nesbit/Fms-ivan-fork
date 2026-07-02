@@ -1,9 +1,47 @@
 "use client"
 
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Factory } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+
+import api from "@/lib/api"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { OpsQueue } from "@/components/operations/ops-queue"
+import { PipelineBoard } from "@/components/operations/pipeline-board"
+import { MaterialRequestInbox } from "@/components/operations/material-request-inbox"
+import { TechnicianRoster } from "@/components/operations/technician-roster"
+import type { OpsOrder, MaterialRequest } from "@/components/operations/types"
+
+type OpsTab = "pipeline" | "queue" | "requests" | "technicians"
 
 export function OperationsPortal() {
+  const [tab, setTab] = useState<OpsTab>("pipeline")
+
+  const { data: queueOrders = [] } = useQuery<OpsOrder[]>({
+    queryKey: ["ops-queue"],
+    queryFn: async () => {
+      const { data } = await api.get<OpsOrder[]>("/production/ops-queue/")
+      return data
+    },
+    refetchInterval: 30_000,
+    placeholderData: (prev) => prev,
+  })
+
+  const { data: materialRequests = [] } = useQuery<MaterialRequest[]>({
+    queryKey: ["material-requests"],
+    queryFn: async () => {
+      const { data } = await api.get<{ results: MaterialRequest[] }>(
+        "/stock/material-requests/?status=PENDING"
+      )
+      return data.results
+    },
+    refetchInterval: 30_000,
+    placeholderData: (prev) => prev,
+  })
+
+  const queueCount = queueOrders.length
+  const pendingCount = materialRequests.length
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start gap-3">
@@ -15,16 +53,43 @@ export function OperationsPortal() {
             Operations Manager Portal
           </h1>
           <p className="max-w-2xl text-pretty text-muted-foreground">
-            Plan production for confirmed orders, assign head technicians and
-            materials, and manage the technician roster.
+            Plan production for confirmed orders, assign technicians and
+            wages, and track the workshop pipeline.
           </p>
         </div>
       </div>
-      <Card>
-        <CardContent className="py-16 text-center text-muted-foreground">
-          Coming soon — API integration in progress.
-        </CardContent>
-      </Card>
+
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as OpsTab)}
+        className="gap-6"
+      >
+        <TabsList className="h-auto flex-wrap">
+          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+          <TabsTrigger value="queue" className="gap-1.5">
+            Ops queue
+            {queueCount > 0 && (
+              <span className="rounded-full bg-foreground/10 px-1.5 text-xs font-medium tabular-nums">
+                {queueCount}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="gap-1.5">
+            Material requests
+            {pendingCount > 0 && (
+              <span className="rounded-full bg-foreground/10 px-1.5 text-xs font-medium tabular-nums">
+                {pendingCount}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="technicians">Technicians</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {tab === "pipeline" && <PipelineBoard />}
+      {tab === "queue" && <OpsQueue />}
+      {tab === "requests" && <MaterialRequestInbox />}
+      {tab === "technicians" && <TechnicianRoster />}
     </div>
   )
 }

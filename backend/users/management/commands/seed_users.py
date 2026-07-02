@@ -23,7 +23,7 @@ BRANCHES = [
 USERS = [
     ("ivan",   "Ivan",   "",  "DIRECTOR",     0, "", ""),
     ("shimi",  "Shimi",  "",  "DIRECTOR",     0, "", ""),
-    ("john",   "John",   "",  "FRONT_DESK",   0, "", ""),
+    ("john",   "John",   "",  "STOCK_KEEPER", 0, "", ""),
     ("nancy",  "Nancy",  "",  "FRONT_DESK",   1, "", ""),
     ("tecla",  "Tecla",  "",  "OPS_MANAGER",  0, "", ""),
     ("allen",  "Allen",  "",  "TECHNICIAN",   0, "", "1234"),
