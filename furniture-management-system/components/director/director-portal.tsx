@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, Loader2, Search, ShieldCheck, X } from "lucide-react"
 import { toast } from "sonner"
@@ -56,11 +56,6 @@ interface Order {
   created_at: string
   notes: string
   images: OrderImage[]
-}
-
-interface OrdersPage {
-  count: number
-  results: Order[]
 }
 
 // ---------------------------------------------------------------------------
@@ -264,19 +259,28 @@ function ApprovalQueue() {
   const [dateFilter, setDateFilter] = useState("")
 
   const { data, isLoading } = useQuery({
-    queryKey: ["director-approval-queue", customerFilter, dateFilter],
+    queryKey: ["director-approval-queue"],
     queryFn: async () => {
-      const params = new URLSearchParams({ status: "PRICE_REVIEW", page_size: "100" })
-      if (customerFilter) params.set("search", customerFilter)
-      if (dateFilter) params.set("date", dateFilter)
-      const { data } = await api.get<OrdersPage>(`/orders/?${params}`)
+      const { data } = await api.get<Order[]>("/orders/?status=PRICE_REVIEW")
       return data
     },
     refetchInterval: 30_000,
     placeholderData: (prev) => prev,
   })
 
-  const orders = data?.results ?? []
+  const orders = useMemo(() => {
+    const all = data ?? []
+    return all.filter((order) => {
+      if (
+        customerFilter &&
+        !order.customer_name.toLowerCase().includes(customerFilter.toLowerCase())
+      ) {
+        return false
+      }
+      if (dateFilter && order.delivery_date !== dateFilter) return false
+      return true
+    })
+  }, [data, customerFilter, dateFilter])
   const hasFilters = customerFilter || dateFilter
 
   return (
@@ -287,7 +291,7 @@ function ApprovalQueue() {
             Pending price approval
             {data && (
               <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                {data.count}
+                {data.length}
               </span>
             )}
           </p>
@@ -426,14 +430,12 @@ export function DirectorPortal() {
   const { data: queueData } = useQuery({
     queryKey: ["director-queue-count"],
     queryFn: async () => {
-      const { data } = await api.get<{ count: number }>(
-        "/orders/?status=PRICE_REVIEW&page_size=1",
-      )
+      const { data } = await api.get<unknown[]>("/orders/?status=PRICE_REVIEW")
       return data
     },
     refetchInterval: 30_000,
   })
-  const pendingCount = queueData?.count ?? 0
+  const pendingCount = queueData?.length ?? 0
 
   return (
     <div className="flex flex-col gap-6">

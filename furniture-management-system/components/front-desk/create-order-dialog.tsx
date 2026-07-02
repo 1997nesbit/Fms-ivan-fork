@@ -9,6 +9,7 @@ import api from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -57,6 +58,7 @@ export function CreateOrderDialog() {
   const [size, setSize]                         = useState("")
   const [quotedPrice, setQuotedPrice]           = useState("")
   const [expectedDelivery, setExpectedDelivery] = useState("")
+  const [notes, setNotes]                       = useState("")
   const [requiresApproval, setRequiresApproval] = useState(false)
   const [images, setImages]                     = useState<ImagePreview[]>([])
   const [dragActive, setDragActive]             = useState(false)
@@ -69,6 +71,7 @@ export function CreateOrderDialog() {
     setSize("")
     setQuotedPrice("")
     setExpectedDelivery("")
+    setNotes("")
     setRequiresApproval(false)
     setImages([])
     setFieldErrors({})
@@ -103,6 +106,7 @@ export function CreateOrderDialog() {
       )
       if (quotedPrice) form.append("quoted_price", quotedPrice)
       form.append("delivery_date", expectedDelivery)
+      if (notes.trim()) form.append("notes", notes.trim())
       form.append("requires_approval", String(requiresApproval))
       for (const img of images) form.append("images", img.file)
       return api.post("/orders/", form)
@@ -216,6 +220,18 @@ export function CreateOrderDialog() {
                 onChange={(e) => setExpectedDelivery(e.target.value)}
               />
               <FieldError errors={fieldErrors.delivery_date?.map((m) => ({ message: m }))} />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="notes">Notes (optional)</FieldLabel>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any extra detail for the workshop or Director…"
+                rows={3}
+              />
+              <FieldError errors={fieldErrors.notes?.map((m) => ({ message: m }))} />
             </Field>
 
             {/* Image upload */}

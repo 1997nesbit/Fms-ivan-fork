@@ -1,11 +1,13 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from users.models import User
 
 from .models import Order, OrderImage
 
@@ -122,6 +124,9 @@ class OrderListCreateView(APIView):
         return Response([_order_payload(o, request) for o in qs])
 
     def post(self, request):
+        if request.user.role != User.Role.FRONT_DESK:
+            return Response({"detail": "Front Desk role required."}, status=403)
+
         errors, quoted_price, delivery_date = _validate_order_data(request)
         if errors:
             return Response({"errors": errors}, status=400)
@@ -133,25 +138,34 @@ class OrderListCreateView(APIView):
             else Order.Status.OPS_QUEUE
         )
 
-        with transaction.atomic():
-            order = Order.objects.create(
-                reference_number=_gen_reference(),
-                branch=request.user.branch,
-                created_by=request.user,
-                customer_name=str(request.data["customer_name"]).strip(),
-                customer_phone=str(request.data["customer_phone"]).strip(),
-                item_description=str(request.data["item_description"]).strip(),
-                quoted_price=quoted_price,
-                delivery_date=delivery_date,
-                notes=str(request.data.get("notes", "")).strip(),
-                status=status_val,
-            )
-            for img_file in request.FILES.getlist("images"):
-                OrderImage.objects.create(
-                    order=order,
-                    image_file=img_file,
-                    uploaded_by=request.user,
-                )
+        # Reference numbers are generated from a row count, so under concurrent
+        # requests two submissions can race for the same number; retry on the
+        # resulting unique-constraint clash rather than fail the request.
+        for attempt in range(5):
+            try:
+                with transaction.atomic():
+                    order = Order.objects.create(
+                        reference_number=_gen_reference(),
+                        branch=request.user.branch,
+                        created_by=request.user,
+                        customer_name=str(request.data["customer_name"]).strip(),
+                        customer_phone=str(request.data["customer_phone"]).strip(),
+                        item_description=str(request.data["item_description"]).strip(),
+                        quoted_price=quoted_price,
+                        delivery_date=delivery_date,
+                        notes=str(request.data.get("notes", "")).strip(),
+                        status=status_val,
+                    )
+                    for img_file in request.FILES.getlist("images"):
+                        OrderImage.objects.create(
+                            order=order,
+                            image_file=img_file,
+                            uploaded_by=request.user,
+                        )
+                break
+            except IntegrityError:
+                if attempt == 4:
+                    raise
 
         order.refresh_from_db()
         return Response(_order_payload(order, request), status=201)
@@ -169,4 +183,41 @@ class OrderCollectView(APIView):
 
         order.status = Order.Status.DISPATCHED
         order.save(update_fields=["status", "updated_at"])
+        return Response(_order_payload(order, request))
+
+
+class OrderConfirmPriceView(APIView):
+    """PATCH /api/orders/<pk>/confirm-price/ — Director confirms price, PRICE_REVIEW → OPS_QUEUE."""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        if request.user.role != User.Role.DIRECTOR:
+            return Response({"detail": "Director role required."}, status=403)
+
+        try:
+            order = Order.objects.get(pk=pk, status=Order.Status.PRICE_REVIEW)
+        except Order.DoesNotExist:
+            return Response(
+                {"detail": "Order not found or not pending price review."}, status=404
+            )
+
+        raw_price = str(request.data.get("confirmed_price", "")).strip()
+        if not raw_price:
+            return Response(
+                {"errors": {"confirmed_price": ["This field is required."]}}, status=400
+            )
+        try:
+            confirmed_price = Decimal(raw_price)
+            if confirmed_price < 0:
+                return Response(
+                    {"errors": {"confirmed_price": ["Price cannot be negative."]}}, status=400
+                )
+        except InvalidOperation:
+            return Response(
+                {"errors": {"confirmed_price": ["Enter a valid number."]}}, status=400
+            )
+
+        order.confirmed_price = confirmed_price
+        order.status = Order.Status.OPS_QUEUE
+        order.save(update_fields=["confirmed_price", "status", "updated_at"])
         return Response(_order_payload(order, request))

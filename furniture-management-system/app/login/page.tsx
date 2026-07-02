@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
+  AlertCircle,
   Armchair,
   Delete,
   Eye,
@@ -105,8 +106,11 @@ export default function LoginPage() {
           </TabsList>
 
           {/* ── Staff tab ── */}
-          <TabsContent value="staff" className="mt-4">
-            <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-5">
+          <TabsContent
+            value="staff"
+            className="mt-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-300"
+          >
+            <div className="rounded-xl border border-border bg-card p-5 shadow-lg shadow-black/5 space-y-5">
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Lock className="size-4" />
@@ -123,8 +127,11 @@ export default function LoginPage() {
           </TabsContent>
 
           {/* ── Technician PIN tab ── */}
-          <TabsContent value="technician" className="mt-4">
-            <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-5">
+          <TabsContent
+            value="technician"
+            className="mt-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-300"
+          >
+            <div className="rounded-xl border border-border bg-card p-5 shadow-lg shadow-black/5 space-y-5">
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
                   <Hammer className="size-4" />
@@ -211,9 +218,13 @@ function StaffLoginForm({ onLogin }: { onLogin: (u: string, p: string) => Promis
       </Field>
 
       {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
+        <div
+          className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive animate-in fade-in-0"
+          role="alert"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          <span>{error}</span>
+        </div>
       )}
 
       <Button type="submit" className="w-full" disabled={submitting}>
@@ -299,9 +310,9 @@ function TechnicianPinForm({ onLogin }: { onLogin: (u: string, p: string) => Pro
             <span
               key={i}
               className={cn(
-                "size-3.5 rounded-full border-2 transition-colors",
+                "size-3.5 rounded-full border-2 transition-all duration-150",
                 i < pin.length
-                  ? "border-amber-500 bg-amber-500"
+                  ? "scale-110 border-amber-500 bg-amber-500"
                   : "border-muted-foreground/30 bg-transparent"
               )}
             />
@@ -325,7 +336,7 @@ function TechnicianPinForm({ onLogin }: { onLogin: (u: string, p: string) => Pro
             key={k}
             type="button"
             variant="outline"
-            className="h-14 text-xl font-medium"
+            className="h-14 text-xl font-medium transition-transform active:scale-95"
             onClick={() => pressDigit(k)}
             disabled={!canType}
           >
@@ -336,7 +347,7 @@ function TechnicianPinForm({ onLogin }: { onLogin: (u: string, p: string) => Pro
         <Button
           type="button"
           variant="outline"
-          className="h-14 text-xl font-medium"
+          className="h-14 text-xl font-medium transition-transform active:scale-95"
           onClick={() => pressDigit("0")}
           disabled={!canType}
         >
@@ -345,7 +356,7 @@ function TechnicianPinForm({ onLogin }: { onLogin: (u: string, p: string) => Pro
         <Button
           type="button"
           variant="ghost"
-          className="h-14"
+          className="h-14 transition-transform active:scale-95"
           onClick={backspace}
           disabled={pin.length === 0}
           aria-label="Delete last digit"

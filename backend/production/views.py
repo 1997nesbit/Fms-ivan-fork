@@ -6,6 +6,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from users.models import User
+
 from .models import ProductionStage
 
 
@@ -33,6 +35,9 @@ class MyQueueView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.user.role != User.Role.TECHNICIAN:
+            return Response({"detail": "Technician role required."}, status=403)
+
         stages = (
             ProductionStage.objects
             .filter(
@@ -59,6 +64,9 @@ class CompleteStageView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        if request.user.role != User.Role.TECHNICIAN:
+            return Response({"detail": "Technician role required."}, status=403)
+
         stage = get_object_or_404(
             ProductionStage,
             pk=pk,
