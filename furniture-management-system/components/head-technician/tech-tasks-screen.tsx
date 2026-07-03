@@ -5,6 +5,7 @@ import {
   Clock,
   Hammer,
   Lock,
+  PackageCheck,
   PackagePlus,
   XCircle,
 } from "lucide-react"
@@ -59,7 +60,7 @@ interface MaterialRequest {
   material_name: string
   quantity: number
   unit: string
-  status: "PENDING" | "APPROVED" | "REJECTED"
+  status: "PENDING" | "APPROVED" | "REJECTED" | "ISSUED"
   requested_by_name: string
   created_at: string
 }
@@ -90,6 +91,12 @@ const REQUEST_STATUS: Record<
     badge: "border border-border bg-muted text-muted-foreground",
     row: "border-l-muted-foreground/40 bg-muted/40",
     Icon: XCircle,
+  },
+  ISSUED: {
+    label: "Issued",
+    badge: "border-transparent bg-blue-600 text-white dark:bg-blue-500",
+    row: "border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20",
+    Icon: PackageCheck,
   },
 }
 

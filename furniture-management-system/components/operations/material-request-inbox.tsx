@@ -42,6 +42,8 @@ const STATUS_STYLES: Record<MRStatus, string> = {
   APPROVED:
     "border-green-300 bg-green-100 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200",
   REJECTED: "border-border bg-muted text-muted-foreground",
+  ISSUED:
+    "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200",
 }
 
 function formatDate(iso: string): string {
