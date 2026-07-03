@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.db import transaction
+from django.db.models import Sum
 
 from users.models import AuditLog
 
@@ -29,16 +32,26 @@ def issue_materials(
     """Atomically deduct inventory and record an Issuance.
 
     If `material_request_id` is given, the request is locked and must still be
-    APPROVED — on success it's linked to the issuance and flips to ISSUED so it
-    can only ever be fulfilled once. Any failure (bad IDs, insufficient stock,
-    already-issued request) rolls back the whole block, leaving inventory and
-    the request's status untouched.
+    APPROVED. On success it's linked to the issuance; the request only flips
+    to ISSUED once the running total issued against it meets the originally
+    requested quantity, so a partial issuance (less than what was asked for)
+    leaves it APPROVED — still visible in the issue queue and still issuable
+    for the remainder. Any failure (bad IDs, insufficient stock, a request
+    that's already fully issued) rolls back the whole block, leaving
+    inventory and the request's status untouched.
+
+    `issuance_type` is only honoured when there's no `material_request_id` to
+    derive it from. Once a request is linked, whether this is the first or a
+    follow-up batch is computed from how many issuances already exist against
+    it — the caller's `issuance_type` is ignored so a stock keeper can't
+    mislabel a second or third partial issuance as "Initial".
 
     Returns (issuance, error_detail, status_code). On failure `issuance` is
     None and `error_detail` is the message to surface to the client.
     """
     with transaction.atomic():
         material_request = None
+        prior_issuance_count = 0
         if material_request_id:
             try:
                 material_request = MaterialRequest.objects.select_for_update().get(
@@ -52,6 +65,11 @@ def issue_materials(
                     f"This request has already been {material_request.get_status_display().lower()}.",
                     400,
                 )
+            prior_issuance_count = Issuance.objects.filter(material_request=material_request).count()
+            issuance_type = (
+                Issuance.IssuanceType.INITIAL if prior_issuance_count == 0
+                else Issuance.IssuanceType.ADDITIONAL
+            )
 
         try:
             inv_item = InventoryItem.objects.select_for_update().get(pk=inventory_item_id)
@@ -79,8 +97,16 @@ def issue_materials(
         )
 
         if material_request:
-            material_request.status = MaterialRequest.Status.ISSUED
-            material_request.save(update_fields=["status"])
+            total_issued = (
+                Issuance.objects.filter(material_request=material_request)
+                .aggregate(total=Sum("quantity_issued"))["total"]
+                or Decimal("0")
+            )
+            if total_issued >= material_request.quantity:
+                material_request.status = MaterialRequest.Status.ISSUED
+                material_request.save(update_fields=["status"])
+            # else: still owed materials -- stays APPROVED, so it remains
+            # visible in the issue queue and can be issued against again.
 
         log_inventory_event(
             user, "material_issued", inv_item,

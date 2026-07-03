@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import api from "@/lib/api"
+import { formatQty } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -235,10 +236,10 @@ export function StockOverview() {
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.name}</TableCell>
                         <TableCell className="text-right tabular-nums text-destructive">
-                          {item.current_quantity} {item.unit}
+                          {formatQty(item.current_quantity)} {item.unit}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {item.minimum_threshold} {item.unit}
+                          {formatQty(item.minimum_threshold)} {item.unit}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
                           {deficit > 0 ? `${deficit} ${item.unit}` : "—"}
@@ -293,7 +294,7 @@ export function StockOverview() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                        {rec.quantity_issued} {rec.unit}
+                        {formatQty(rec.quantity_issued)} {rec.unit}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -333,7 +334,7 @@ export function StockOverview() {
                     </TableCell>
                     <TableCell className="font-medium">{req.material_name}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {req.quantity} {req.unit}
+                      {formatQty(req.quantity)} {req.unit}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {req.requested_by_name ?? "—"}

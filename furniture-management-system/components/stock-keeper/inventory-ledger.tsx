@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, Loader2, Plus, Search, Pencil } from "lucide-react"
 
 import api from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, formatQty } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -203,14 +203,14 @@ function EditItemDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const queryClient = useQueryClient()
-  const [qty, setQty] = useState(item.current_quantity)
-  const [threshold, setThreshold] = useState(item.minimum_threshold)
+  const [qty, setQty] = useState(formatQty(item.current_quantity))
+  const [threshold, setThreshold] = useState(formatQty(item.minimum_threshold))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
-      setQty(item.current_quantity)
-      setThreshold(item.minimum_threshold)
+      setQty(formatQty(item.current_quantity))
+      setThreshold(formatQty(item.minimum_threshold))
       setError(null)
     }
   }, [open, item])
@@ -373,10 +373,10 @@ export function InventoryLedger() {
                 <TableCell className="font-medium">{item.name}</TableCell>
                 <TableCell className="text-muted-foreground">{item.unit}</TableCell>
                 <TableCell className="text-right tabular-nums font-semibold">
-                  {item.current_quantity}
+                  {formatQty(item.current_quantity)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {item.minimum_threshold}
+                  {formatQty(item.minimum_threshold)}
                 </TableCell>
                 <TableCell className="text-right">
                   {item.is_low_stock ? (

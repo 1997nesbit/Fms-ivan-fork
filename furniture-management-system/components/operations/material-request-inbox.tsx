@@ -6,7 +6,7 @@ import { Check, X } from "lucide-react"
 import { toast } from "sonner"
 
 import api from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, formatQty } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -145,7 +145,7 @@ export function MaterialRequestInbox() {
       const req = requests.find((r) => r.id === id)
       toast.success("Request approved", {
         description: req
-          ? `Authorised issuance of ${req.quantity} ${req.unit} of ${req.material_name}.`
+          ? `Authorised issuance of ${formatQty(req.quantity)} ${req.unit} of ${req.material_name}.`
           : "Material request approved.",
       })
     },
@@ -210,7 +210,7 @@ export function MaterialRequestInbox() {
                   </TableCell>
                   <TableCell>{req.material_name}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {req.quantity} {req.unit}
+                    {formatQty(req.quantity)} {req.unit}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDate(req.created_at)}
