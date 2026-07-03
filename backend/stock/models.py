@@ -45,6 +45,7 @@ class MaterialRequest(models.Model):
         PENDING = "PENDING", "Pending"
         APPROVED = "APPROVED", "Approved"
         REJECTED = "REJECTED", "Rejected"
+        ISSUED = "ISSUED", "Issued"
 
     stage = models.ForeignKey(
         PRODUCTION_STAGE,
@@ -95,6 +96,13 @@ class Issuance(models.Model):
     )
     inventory_item = models.ForeignKey(
         InventoryItem, on_delete=models.RESTRICT, related_name="issuances"
+    )
+    material_request = models.ForeignKey(
+        MaterialRequest,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="issuances",
     )
     quantity_issued = models.DecimalField(max_digits=12, decimal_places=3)
     issued_by = models.ForeignKey(

@@ -68,7 +68,7 @@ interface MaterialRequest {
   material_name: string
   quantity: string
   unit: string
-  status: "PENDING" | "APPROVED" | "REJECTED"
+  status: "PENDING" | "APPROVED" | "REJECTED" | "ISSUED"
   requested_by_name: string | null
   created_at: string
 }
@@ -159,6 +159,7 @@ function IssueMaterialDialog({
         quantity_issued: qty,
         stage_id: request.stage_id,
         issuance_type: issuanceType,
+        material_request_id: request.id,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["material-requests"] })

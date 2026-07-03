@@ -13,9 +13,11 @@ class ShowroomItem(models.Model):
         BROKEN_OUT = "BROKEN_OUT", "Broken Out"
 
     sku = models.CharField(max_length=100)
+    serial_number = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=200)
     branch = models.ForeignKey(BRANCH, on_delete=models.RESTRICT, related_name="showroom_items")
     category = models.CharField(max_length=100, blank=True)
+    description = models.TextField(blank=True, default="")
     price = models.DecimalField(max_digits=12, decimal_places=2)
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.AVAILABLE)
     parent_set = models.ForeignKey(
@@ -121,3 +123,40 @@ class BranchTransferRequest(models.Model):
 
     def __str__(self):
         return f"{self.item.sku}: {self.from_branch} → {self.to_branch}"
+
+
+class SetBreakRequest(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+
+    item = models.ForeignKey(
+        ShowroomItem,
+        on_delete=models.RESTRICT,
+        related_name="break_requests",
+        limit_choices_to={"is_set": True},
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.RESTRICT,
+        related_name="set_break_requests",
+    )
+    reason = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_set_breaks",
+    )
+    review_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status"])]
+
+    def __str__(self):
+        return f"Set-break: {self.item.sku} ({self.status})"

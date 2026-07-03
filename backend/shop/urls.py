@@ -1,8 +1,8 @@
-﻿from django.urls import path
+from django.urls import path
 
-from .views import SaleListView
+from .views import SaleListCreateView, ShowroomItemListCreateView
 
 urlpatterns = [
-    path("sales/", SaleListView.as_view(), name="shop_sale_list"),
+    path("items/", ShowroomItemListCreateView.as_view()),
+    path("sales/", SaleListCreateView.as_view()),
 ]
-
