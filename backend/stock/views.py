@@ -379,23 +379,27 @@ class IssuanceListCreateView(APIView):
         except OrderModel.DoesNotExist:
             return Response({"detail": "Order not found."}, status=404)
 
-        try:
-            inv_item = InventoryItem.objects.select_for_update().get(pk=item_id)
-        except InventoryItem.DoesNotExist:
-            return Response({"detail": "Inventory item not found."}, status=404)
-
-        if inv_item.current_quantity < qty:
-            return Response(
-                {"detail": f"Insufficient stock: {inv_item.current_quantity} {inv_item.unit} available."},
-                status=400,
-            )
-
         stage_id = request.data.get("stage_id")
         issuance_type = str(request.data.get("issuance_type", "INITIAL")).strip().upper()
         if issuance_type not in ("INITIAL", "ADDITIONAL"):
             issuance_type = "INITIAL"
 
+        # The row lock only holds for the life of a transaction, so the fetch,
+        # stock check, and deduction must all happen inside the same atomic
+        # block — otherwise two concurrent requests can both pass the check
+        # before either deducts, over-issuing stock.
         with transaction.atomic():
+            try:
+                inv_item = InventoryItem.objects.select_for_update().get(pk=item_id)
+            except InventoryItem.DoesNotExist:
+                return Response({"detail": "Inventory item not found."}, status=404)
+
+            if inv_item.current_quantity < qty:
+                return Response(
+                    {"detail": f"Insufficient stock: {inv_item.current_quantity} {inv_item.unit} available."},
+                    status=400,
+                )
+
             inv_item.current_quantity -= qty
             inv_item.save(update_fields=["current_quantity"])
             iss = Issuance.objects.create(

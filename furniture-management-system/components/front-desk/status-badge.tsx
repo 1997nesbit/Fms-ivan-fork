@@ -8,6 +8,7 @@ export type OrderStatus =
   | "IN_PRODUCTION"
   | "WORKSHOP_COMPLETE"
   | "DISPATCHED"
+  | "CANCELLED"
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; className: string }> = {
   PENDING: {
@@ -37,6 +38,11 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; className: string }> =
   DISPATCHED: {
     label: "Dispatched",
     className: "border-border bg-muted text-muted-foreground",
+  },
+  CANCELLED: {
+    label: "Cancelled",
+    className:
+      "border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200",
   },
 }
 

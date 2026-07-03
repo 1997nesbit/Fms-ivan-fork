@@ -426,9 +426,12 @@ export function IssueMaterialsScreen() {
   const { data: issuanceRecords = [], isLoading: recordsLoading } = useIssuanceRecords()
 
   const pendingCount = requests.length
+  const lowStockCount = inventoryItems.filter((i) => i.is_low_stock).length
 
   return (
     <div className="flex flex-col gap-6">
+      <LowStockBanner count={lowStockCount} />
+
       {/* Summary strip */}
       <div className="flex flex-wrap gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
         <span>

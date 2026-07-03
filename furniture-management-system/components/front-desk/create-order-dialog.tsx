@@ -201,10 +201,11 @@ export function CreateOrderDialog() {
                 id="quotedPrice"
                 type="number"
                 min="0"
-                step="0.01"
+                step="1"
+                inputMode="numeric"
                 value={quotedPrice}
-                onChange={(e) => setQuotedPrice(e.target.value)}
-                placeholder="0.00"
+                onChange={(e) => setQuotedPrice(e.target.value.replace(/\D/g, ""))}
+                placeholder="0"
               />
               <FieldError errors={fieldErrors.quoted_price?.map((m) => ({ message: m }))} />
             </Field>

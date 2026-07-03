@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle2, Loader2, Search, ShieldCheck, X } from "lucide-react"
+import { CheckCircle2, Loader2, Search, ShieldCheck, X, XCircle } from "lucide-react"
 import { toast } from "sonner"
 
 import api from "@/lib/api"
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -29,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { LowStockBanner } from "@/components/stock-keeper/issue-materials-screen"
 import { CostBreakdown } from "@/components/director/cost-breakdown"
 import { PayrollView } from "@/components/director/payroll-view"
 import { WeeklyReportView } from "@/components/director/weekly-report-view"
@@ -106,7 +108,11 @@ function OrderPreviewDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const queryClient = useQueryClient()
-  const [confirmedPrice, setConfirmedPrice] = useState(order.quoted_price ?? "")
+  const [mode, setMode] = useState<"review" | "reject">("review")
+  const [confirmedPrice, setConfirmedPrice] = useState(
+    order.quoted_price ? String(Math.round(Number(order.quoted_price))) : ""
+  )
+  const [reason, setReason] = useState("")
   const [fieldError, setFieldError] = useState<string | null>(null)
 
   const confirm = useMutation({
@@ -130,6 +136,28 @@ function OrderPreviewDialog({
         setFieldError(data.errors.confirmed_price[0])
       } else {
         toast.error(data?.detail ?? "Failed to confirm price.")
+      }
+    },
+  })
+
+  const reject = useMutation({
+    mutationFn: () => api.patch(`/orders/${order.id}/reject/`, { reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["director-approval-queue"] })
+      queryClient.invalidateQueries({ queryKey: ["director-queue-count"] })
+      toast.success("Order rejected", {
+        description: `${order.reference_number} marked as cancelled.`,
+      })
+      onOpenChange(false)
+    },
+    onError: (err: {
+      response?: { data?: { errors?: Record<string, string[]>; detail?: string } }
+    }) => {
+      const data = err.response?.data
+      if (data?.errors?.reason) {
+        setFieldError(data.errors.reason[0])
+      } else {
+        toast.error(data?.detail ?? "Failed to reject order.")
       }
     },
   })
@@ -196,54 +224,117 @@ function OrderPreviewDialog({
         )}
 
         <Separator />
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            setFieldError(null)
-            confirm.mutate()
-          }}
-        >
-          <div className="space-y-4">
-            <p className="text-sm font-medium">Confirm price</p>
-            {order.quoted_price && (
-              <p className="text-sm text-muted-foreground">
-                Quoted by front desk:{" "}
-                <span className="font-semibold text-foreground">
-                  {currency.format(Number(order.quoted_price))}
-                </span>
-              </p>
-            )}
-            <Field>
-              <FieldLabel htmlFor="confirmed-price">Confirmed price (TZS)</FieldLabel>
-              <Input
-                id="confirmed-price"
-                type="number"
-                min="0"
-                step="0.01"
-                required
-                value={confirmedPrice}
-                onChange={(e) => {
-                  setConfirmedPrice(e.target.value)
-                  setFieldError(null)
-                }}
-              />
-              {fieldError && <FieldError errors={[{ message: fieldError }]} />}
-            </Field>
-          </div>
-          <div className="mt-6 flex justify-end gap-2">
-            <DialogClose render={<Button type="button" variant="outline" />}>
-              Close
-            </DialogClose>
-            <Button type="submit" disabled={confirm.isPending}>
-              {confirm.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <CheckCircle2 data-icon="inline-start" />
+
+        {mode === "review" ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              setFieldError(null)
+              confirm.mutate()
+            }}
+          >
+            <div className="space-y-4">
+              <p className="text-sm font-medium">Confirm price</p>
+              {order.quoted_price && (
+                <p className="text-sm text-muted-foreground">
+                  Quoted by front desk:{" "}
+                  <span className="font-semibold text-foreground">
+                    {currency.format(Number(order.quoted_price))}
+                  </span>
+                </p>
               )}
-              Confirm &amp; approve
-            </Button>
-          </div>
-        </form>
+              <Field>
+                <FieldLabel htmlFor="confirmed-price">Confirmed price (TZS)</FieldLabel>
+                <Input
+                  id="confirmed-price"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  required
+                  value={confirmedPrice}
+                  onChange={(e) => {
+                    setConfirmedPrice(e.target.value.replace(/\D/g, ""))
+                    setFieldError(null)
+                  }}
+                />
+                {fieldError && <FieldError errors={[{ message: fieldError }]} />}
+              </Field>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <DialogClose render={<Button type="button" variant="outline" />}>
+                Close
+              </DialogClose>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
+                onClick={() => {
+                  setFieldError(null)
+                  setMode("reject")
+                }}
+              >
+                <XCircle data-icon="inline-start" />
+                Reject order
+              </Button>
+              <Button type="submit" disabled={confirm.isPending}>
+                {confirm.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 data-icon="inline-start" />
+                )}
+                Confirm &amp; approve
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              setFieldError(null)
+              reject.mutate()
+            }}
+          >
+            <div className="space-y-4">
+              <p className="text-sm font-medium">Reject order</p>
+              <Field>
+                <FieldLabel htmlFor="reject-reason">Reason for rejection</FieldLabel>
+                <Textarea
+                  id="reject-reason"
+                  required
+                  rows={3}
+                  placeholder="e.g. Customer cancelled, Price not viable…"
+                  value={reason}
+                  onChange={(e) => {
+                    setReason(e.target.value)
+                    setFieldError(null)
+                  }}
+                />
+                {fieldError && <FieldError errors={[{ message: fieldError }]} />}
+              </Field>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setFieldError(null)
+                  setMode("review")
+                }}
+              >
+                Back
+              </Button>
+              <Button type="submit" variant="destructive" disabled={reject.isPending}>
+                {reject.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <XCircle data-icon="inline-start" />
+                )}
+                Confirm rejection
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -437,8 +528,19 @@ export function DirectorPortal() {
   })
   const pendingCount = queueData?.length ?? 0
 
+  const { data: lowStockCount = 0 } = useQuery({
+    queryKey: ["low-stock-count"],
+    queryFn: async () => {
+      const { data } = await api.get<{ results: { is_low_stock: boolean }[] }>("/stock/items/")
+      return data.results.filter((i) => i.is_low_stock).length
+    },
+    staleTime: 60_000,
+  })
+
   return (
     <div className="flex flex-col gap-6">
+      <LowStockBanner count={lowStockCount} />
+
       <div className="flex items-start gap-3">
         <span className="mt-0.5 flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
           <ShieldCheck className="size-5" />
