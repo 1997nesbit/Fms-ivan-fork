@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 
 import api from "@/lib/api"
-import { formatQty } from "@/lib/utils"
+import { formatQty, toArray } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -153,16 +153,17 @@ export function StockOverview() {
   })
 
   const lowStockItems = useMemo(
-    () => items.filter((i) => i.is_low_stock),
+    () => toArray(items).filter((i) => i.is_low_stock),
     [items]
   )
 
   const pendingRestocks = useMemo(
-    () => restockRequests.filter((r) => r.status === "PENDING"),
+    () => toArray(restockRequests).filter((r) => r.status === "PENDING"),
     [restockRequests]
   )
 
-  const recentIssuances = useMemo(() => issuances.slice(0, 8), [issuances])
+  const recentIssuances = useMemo(() => toArray(issuances).slice(0, 8), [issuances])
+  const safeRequests = toArray(requests)
 
   if (itemsLoading) {
     return (
@@ -191,15 +192,15 @@ export function StockOverview() {
         />
         <KpiCard
           label="Pending requests"
-          value={requests.length}
+          value={safeRequests.length}
           sub="Approved, awaiting issue"
           icon={ClipboardCheck}
-          alert={requests.length > 0}
+          alert={safeRequests.length > 0}
         />
         <KpiCard
           label="Open restock req."
           value={pendingRestocks.length}
-          sub={`${restockRequests.length} total submitted`}
+          sub={`${toArray(restockRequests).length} total submitted`}
           icon={RotateCcw}
         />
       </div>
@@ -306,7 +307,7 @@ export function StockOverview() {
       </div>
 
       {/* Pending material requests */}
-      {requests.length > 0 && (
+      {safeRequests.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -325,7 +326,7 @@ export function StockOverview() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {requests.slice(0, 5).map((req) => (
+                {safeRequests.slice(0, 5).map((req) => (
                   <TableRow key={req.id}>
                     <TableCell>
                       <span className="font-mono text-xs text-muted-foreground">

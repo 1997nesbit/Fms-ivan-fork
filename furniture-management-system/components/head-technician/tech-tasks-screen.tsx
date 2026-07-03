@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import api from "@/lib/api"
-import { cn, formatQty } from "@/lib/utils"
+import { cn, formatQty, toArray } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -154,7 +154,10 @@ export function TechTasksScreen() {
     },
     refetchInterval: 60_000,
   })
-  const myRequests = (requestsData ?? []).sort((a, b) =>
+  // Defensive: this query key is shared across several screens, so normalize
+  // before sorting in case any of them ever cache something other than the
+  // plain array this screen expects (a paginated envelope, an error body, etc).
+  const myRequests = toArray<MaterialRequest>(requestsData).sort((a, b) =>
     b.created_at.localeCompare(a.created_at)
   )
 
@@ -174,7 +177,7 @@ export function TechTasksScreen() {
   })
 
   // Non-done stages, sorted Active → Pending.
-  const assigned = stages
+  const assigned = toArray<QueueStage>(stages)
     .filter((s) => s.status !== "DONE")
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
 

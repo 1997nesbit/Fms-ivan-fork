@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner"
 
 import api from "@/lib/api"
-import { cn, formatQty } from "@/lib/utils"
+import { cn, formatQty, toArray } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -451,10 +451,12 @@ function IssuanceHistory({ records }: { records: IssuanceRecord[] }) {
 // ---------------------------------------------------------------------------
 
 export function IssueMaterialsScreen() {
-  const { data: inventoryItems = [] } = useInventory()
-  const { data: requests = [], isLoading: requestsLoading } = useMaterialRequests()
+  const { data: inventoryItemsData = [] } = useInventory()
+  const { data: requestsData = [], isLoading: requestsLoading } = useMaterialRequests()
   const { data: issuanceRecords = [], isLoading: recordsLoading } = useIssuanceRecords()
 
+  const inventoryItems = toArray(inventoryItemsData)
+  const requests = toArray(requestsData)
   const pendingCount = requests.length
   const lowStockCount = inventoryItems.filter((i) => i.is_low_stock).length
 

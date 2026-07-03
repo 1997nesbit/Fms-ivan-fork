@@ -18,3 +18,18 @@ export function formatQty(value: string | number): string {
   if (!Number.isFinite(n)) return String(value)
   return String(n)
 }
+
+/**
+ * Normalizes an API/query result that should be a list, so `.sort()`,
+ * `.filter()`, and `.map()` never throw on a shape that isn't one —
+ * a raw array, a DRF-style `{results: [...]}` envelope, an error payload,
+ * or a missing response all safely resolve to an array (empty if nothing
+ * usable was found).
+ */
+export function toArray<T>(data: T[] | { results?: unknown } | null | undefined): T[] {
+  if (Array.isArray(data)) return data
+  if (data && typeof data === "object" && Array.isArray((data as { results?: unknown }).results)) {
+    return (data as { results: T[] }).results
+  }
+  return []
+}

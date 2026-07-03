@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Factory } from "lucide-react"
 
 import api from "@/lib/api"
+import { toArray } from "@/lib/utils"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OpsQueue } from "@/components/operations/ops-queue"
 import { PipelineBoard } from "@/components/operations/pipeline-board"
@@ -49,8 +50,8 @@ export function OperationsPortal() {
     staleTime: 60_000,
   })
 
-  const queueCount = queueOrders.length
-  const pendingCount = materialRequests.length
+  const queueCount = toArray(queueOrders).length
+  const pendingCount = toArray(materialRequests).length
 
   return (
     <div className="flex flex-col gap-6">
