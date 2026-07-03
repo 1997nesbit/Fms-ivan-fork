@@ -43,7 +43,7 @@ export interface MaterialRequest {
   material_name: string
   quantity: number
   unit: string
-  status: "PENDING" | "APPROVED" | "REJECTED"
+  status: "PENDING" | "APPROVED" | "REJECTED" | "ISSUED"
   requested_by_name: string
   reviewed_by_name: string | null
   review_reason: string | null

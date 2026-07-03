@@ -1,14 +1,15 @@
 from decimal import Decimal, InvalidOperation
 
-from django.db import transaction
+from django.db.models import F, Q
 from django.utils import timezone
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from users.models import AuditLog, User
 from .models import InventoryItem, Issuance, MaterialRequest, RestockRequest
-from .services import log_inventory_event
+from .services import issue_materials, log_inventory_event
 
 _REQUIRED = "This field is required."
 _NOT_AUTHORIZED = "Not authorized."
@@ -62,6 +63,7 @@ def _issuance_payload(iss):
         "stage_id": iss.stage_id,
         "inventory_item_id": iss.inventory_item_id,
         "inventory_item_name": iss.inventory_item.name,
+        "material_request_id": iss.material_request_id,
         "quantity_issued": str(iss.quantity_issued),
         "unit": iss.inventory_item.unit,
         "issuance_type": iss.issuance_type,
@@ -97,9 +99,19 @@ def _restock_payload(req):
 # POST /api/stock/items/
 # ---------------------------------------------------------------------------
 
+class InventoryItemPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 500
+
+
 class InventoryItemListCreateView(APIView):
     """
     GET  — list all inventory items (Stock Keeper, Ops Manager, Director).
+           Optional: ?search=, ?unit=, ?is_low_stock=true, ?page=, ?page_size=.
+           Pagination is opt-in — a request with none of `page`/`page_size`
+           gets the full, unpaginated `{"results": [...]}` list exactly as
+           before, so existing frontend calls keep working unchanged.
     POST — add a new item (Stock Keeper only).
     """
     permission_classes = [IsAuthenticated]
@@ -109,7 +121,30 @@ class InventoryItemListCreateView(APIView):
     def get(self, request):
         if request.user.role not in self._ALLOWED_ROLES:
             return Response({"detail": _NOT_AUTHORIZED}, status=403)
+
         items = InventoryItem.objects.order_by("name")
+
+        search = request.query_params.get("search", "").strip()
+        if search:
+            items = items.filter(Q(name__icontains=search) | Q(unit__icontains=search))
+
+        unit = request.query_params.get("unit", "").strip()
+        if unit:
+            items = items.filter(unit__iexact=unit)
+
+        is_low_stock = request.query_params.get("is_low_stock")
+        if is_low_stock is not None:
+            wants_low = is_low_stock.strip().lower() in ("1", "true", "yes")
+            if wants_low:
+                items = items.filter(current_quantity__lte=F("minimum_threshold"))
+            else:
+                items = items.filter(current_quantity__gt=F("minimum_threshold"))
+
+        if "page" in request.query_params or "page_size" in request.query_params:
+            paginator = InventoryItemPagination()
+            page = paginator.paginate_queryset(items, request, view=self)
+            return paginator.get_paginated_response([_item_payload(i) for i in page])
+
         return Response({"results": [_item_payload(i) for i in items]})
 
     def post(self, request):
@@ -349,7 +384,7 @@ class IssuanceListCreateView(APIView):
         if request.user.role not in (User.Role.STOCK_KEEPER, User.Role.OPS_MANAGER, User.Role.DIRECTOR):
             return Response({"detail": _NOT_AUTHORIZED}, status=403)
         qs = Issuance.objects.select_related(
-            "order", "inventory_item", "issued_by"
+            "order", "inventory_item", "issued_by", "material_request"
         ).order_by("-issued_at")
         return Response({"results": [_issuance_payload(i) for i in qs]})
 
@@ -388,43 +423,34 @@ class IssuanceListCreateView(APIView):
         except OrderModel.DoesNotExist:
             return Response({"detail": "Order not found."}, status=404)
 
-        stage_id = request.data.get("stage_id")
+        stage_id = request.data.get("stage_id") or None
+        if stage_id is not None:
+            from production.models import ProductionStage
+            if not ProductionStage.objects.filter(pk=stage_id).exists():
+                return Response({"detail": "Production stage not found."}, status=404)
+
         issuance_type = str(request.data.get("issuance_type", "INITIAL")).strip().upper()
         if issuance_type not in ("INITIAL", "ADDITIONAL"):
             issuance_type = "INITIAL"
 
-        # select_for_update() requires an open transaction, so the lock, the
-        # sufficiency check, and the deduction must all happen inside the
-        # same atomic block to avoid a race between two concurrent issuances.
-        with transaction.atomic():
-            try:
-                inv_item = InventoryItem.objects.select_for_update().get(pk=item_id)
-            except InventoryItem.DoesNotExist:
-                return Response({"detail": "Inventory item not found."}, status=404)
+        material_request_id = request.data.get("material_request_id") or None
 
-            if inv_item.current_quantity < qty:
-                return Response(
-                    {"detail": f"Insufficient stock: {inv_item.current_quantity} {inv_item.unit} available."},
-                    status=400,
-                )
+        iss, error_detail, status_code = issue_materials(
+            user=request.user,
+            order=order,
+            inventory_item_id=item_id,
+            quantity=qty,
+            stage_id=stage_id,
+            issuance_type=issuance_type,
+            material_request_id=material_request_id,
+        )
+        if error_detail:
+            return Response({"detail": error_detail}, status=status_code)
 
-            inv_item.current_quantity -= qty
-            inv_item.save(update_fields=["current_quantity"])
-            iss = Issuance.objects.create(
-                order=order,
-                stage_id=stage_id or None,
-                inventory_item=inv_item,
-                quantity_issued=qty,
-                issued_by=request.user,
-                issuance_type=issuance_type,
-            )
-            log_inventory_event(
-                request.user, "material_issued", inv_item,
-                {"quantity_issued": str(qty), "order_reference": order.reference_number},
-            )
-
-        iss = Issuance.objects.select_related("order", "inventory_item", "issued_by").get(pk=iss.pk)
-        return Response(_issuance_payload(iss), status=201)
+        iss = Issuance.objects.select_related(
+            "order", "inventory_item", "issued_by", "material_request"
+        ).get(pk=iss.pk)
+        return Response(_issuance_payload(iss), status=status_code)
 
 
 # ---------------------------------------------------------------------------
