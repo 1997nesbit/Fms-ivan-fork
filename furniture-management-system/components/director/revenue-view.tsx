@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { TrendingUp, ShoppingBag, Hammer } from "lucide-react"
+import { TrendingUp, ShoppingBag, Hammer, Search } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 
 import api from "@/lib/api"
@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -171,8 +172,32 @@ function SummaryTable({
 // Main component
 // ---------------------------------------------------------------------------
 
+function SearchBox({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+}) {
+  return (
+    <div className="relative">
+      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        className="h-8 w-56 pl-8 text-sm"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  )
+}
+
 export function RevenueView() {
   const [tab, setTab] = useState<RevenueTab>("overview")
+  const [workshopSearch, setWorkshopSearch] = useState("")
+  const [showroomSearch, setShowroomSearch] = useState("")
 
   const { data: dispatchedOrders = [] } = useQuery({
     queryKey: ["revenue-orders"],
@@ -208,6 +233,32 @@ export function RevenueView() {
       return acc
     }, {}),
   ).map(([label, value]) => ({ label, value }))
+
+  const workshopQuery = workshopSearch.trim().toLowerCase()
+  const filteredOrders = workshopQuery
+    ? dispatchedOrders.filter(
+        (o) =>
+          o.reference_number.toLowerCase().includes(workshopQuery) ||
+          o.customer_name.toLowerCase().includes(workshopQuery) ||
+          o.item_description.toLowerCase().includes(workshopQuery),
+      )
+    : dispatchedOrders
+  const filteredOrdersRevenue = filteredOrders.reduce(
+    (s, o) => s + Number(o.confirmed_price ?? o.quoted_price ?? 0),
+    0,
+  )
+
+  const showroomQuery = showroomSearch.trim().toLowerCase()
+  const filteredSales = showroomQuery
+    ? sales.filter(
+        (s) =>
+          s.reference.toLowerCase().includes(showroomQuery) ||
+          s.item_name.toLowerCase().includes(showroomQuery) ||
+          s.item_sku.toLowerCase().includes(showroomQuery) ||
+          s.branch_name.toLowerCase().includes(showroomQuery),
+      )
+    : sales
+  const filteredSalesRevenue = filteredSales.reduce((s, sale) => s + Number(sale.sale_price), 0)
 
   const tabs: { key: RevenueTab; label: string }[] = [
     { key: "overview", label: "Overview" },
@@ -312,9 +363,16 @@ export function RevenueView() {
       {/* Workshop orders tab */}
       {tab === "workshop" && (
         <Card>
-          <CardHeader>
-            <CardTitle>Workshop orders</CardTitle>
-            <CardDescription>All dispatched customer orders and their revenue contribution.</CardDescription>
+          <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle>Workshop orders</CardTitle>
+              <CardDescription>All dispatched customer orders and their revenue contribution.</CardDescription>
+            </div>
+            <SearchBox
+              value={workshopSearch}
+              onChange={setWorkshopSearch}
+              placeholder="Search order, customer, item…"
+            />
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -330,14 +388,16 @@ export function RevenueView() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dispatchedOrders.length === 0 && (
+                  {filteredOrders.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                        No dispatched orders yet.
+                        {dispatchedOrders.length === 0
+                          ? "No dispatched orders yet."
+                          : "No orders match your search."}
                       </TableCell>
                     </TableRow>
                   )}
-                  {dispatchedOrders.map((o) => (
+                  {filteredOrders.map((o) => (
                     <TableRow key={o.id}>
                       <TableCell className="font-medium tabular-nums">{o.reference_number}</TableCell>
                       <TableCell>{o.customer_name}</TableCell>
@@ -355,7 +415,7 @@ export function RevenueView() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={5} className="font-medium">Total</TableCell>
-                    <TableCell className="text-right font-bold tabular-nums">{formatMoney(workshopRevenue)}</TableCell>
+                    <TableCell className="text-right font-bold tabular-nums">{formatMoney(filteredOrdersRevenue)}</TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>
@@ -367,13 +427,22 @@ export function RevenueView() {
       {/* Showroom sales tab */}
       {tab === "showroom" && (
         <Card>
-          <CardHeader>
-            <CardTitle>Showroom sales</CardTitle>
-            <CardDescription>All completed showroom transactions.</CardDescription>
+          <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle>Showroom sales</CardTitle>
+              <CardDescription>All completed showroom transactions.</CardDescription>
+            </div>
+            <SearchBox
+              value={showroomSearch}
+              onChange={setShowroomSearch}
+              placeholder="Search reference, item, branch…"
+            />
           </CardHeader>
           <CardContent>
             {sales.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No showroom sales recorded yet.</p>
+            ) : filteredSales.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No sales match your search.</p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -388,7 +457,7 @@ export function RevenueView() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sales.map((s) => (
+                    {filteredSales.map((s) => (
                       <TableRow key={s.id}>
                         <TableCell className="font-medium tabular-nums">{s.reference}</TableCell>
                         <TableCell>
@@ -411,7 +480,7 @@ export function RevenueView() {
                   <TableFooter>
                     <TableRow>
                       <TableCell colSpan={5} className="font-medium">Total</TableCell>
-                      <TableCell className="text-right font-bold tabular-nums">{formatMoney(showroomRevenue)}</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums">{formatMoney(filteredSalesRevenue)}</TableCell>
                     </TableRow>
                   </TableFooter>
                 </Table>

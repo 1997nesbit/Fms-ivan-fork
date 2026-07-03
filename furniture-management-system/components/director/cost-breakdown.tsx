@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+import { Search } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 
 import api from "@/lib/api"
@@ -20,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,6 +79,8 @@ function SummaryStat({
 // ---------------------------------------------------------------------------
 
 export function CostBreakdown() {
+  const [search, setSearch] = useState("")
+
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["cost-breakdown-payments"],
     queryFn: async () => {
@@ -86,17 +91,27 @@ export function CostBreakdown() {
     refetchInterval: 30_000,
   })
 
-  const totalLabour = payments.reduce((s, p) => s + Number(p.amount), 0)
-  const pendingLabour = payments
+  const q = search.trim().toLowerCase()
+  const filteredPayments = q
+    ? payments.filter(
+        (p) =>
+          (p.technician_name ?? "").toLowerCase().includes(q) ||
+          p.stage_name.toLowerCase().includes(q) ||
+          p.order_reference.toLowerCase().includes(q),
+      )
+    : payments
+
+  const totalLabour = filteredPayments.reduce((s, p) => s + Number(p.amount), 0)
+  const pendingLabour = filteredPayments
     .filter((p) => p.status === "PENDING")
     .reduce((s, p) => s + Number(p.amount), 0)
-  const paidLabour = payments
+  const paidLabour = filteredPayments
     .filter((p) => p.status === "PAID")
     .reduce((s, p) => s + Number(p.amount), 0)
 
   // Group by order for a per-order breakdown
   const byOrder = Object.values(
-    payments.reduce<
+    filteredPayments.reduce<
       Record<
         string,
         { reference: string; stages: number; labour: number; pending: number }
@@ -126,11 +141,22 @@ export function CostBreakdown() {
 
       {/* Per-payment table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Production cost breakdown</CardTitle>
-          <CardDescription>
-            Labour payments per production stage across all workshop orders.
-          </CardDescription>
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle>Production cost breakdown</CardTitle>
+            <CardDescription>
+              Labour payments per production stage across all workshop orders.
+            </CardDescription>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 w-56 pl-8 text-sm"
+              placeholder="Search technician, stage, order…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -152,14 +178,16 @@ export function CostBreakdown() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && payments.length === 0 && (
+                {!isLoading && filteredPayments.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      No production payments recorded yet.
+                      {payments.length === 0
+                        ? "No production payments recorded yet."
+                        : "No payments match your search."}
                     </TableCell>
                   </TableRow>
                 )}
-                {payments.map((p) => (
+                {filteredPayments.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.technician_name ?? "—"}</TableCell>
                     <TableCell>{p.stage_name}</TableCell>

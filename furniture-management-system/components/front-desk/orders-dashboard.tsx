@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle2, ClipboardList, PackageCheck } from "lucide-react"
+import { CheckCircle2, ClipboardList, PackageCheck, Search } from "lucide-react"
 import { toast } from "sonner"
 
 import api from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
@@ -91,6 +92,7 @@ function splitDescription(desc: string): { type: string; size: string } {
 export function OrdersDashboard() {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<FilterValue>("all")
+  const [search, setSearch] = useState("")
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders"],
@@ -132,13 +134,22 @@ export function OrdersDashboard() {
   }, [orders])
 
   const visible = useMemo(() => {
-    const list = filter === "all" ? orders : orders.filter((o) => o.status === filter)
+    let list = filter === "all" ? orders : orders.filter((o) => o.status === filter)
+    const q = search.trim().toLowerCase()
+    if (q) {
+      list = list.filter(
+        (o) =>
+          o.reference_number.toLowerCase().includes(q) ||
+          o.customer_name.toLowerCase().includes(q) ||
+          o.customer_phone.toLowerCase().includes(q),
+      )
+    }
     return [...list].sort((a, b) => {
       if (a.status === "WORKSHOP_COMPLETE" && b.status !== "WORKSHOP_COMPLETE") return -1
       if (b.status === "WORKSHOP_COMPLETE" && a.status !== "WORKSHOP_COMPLETE") return 1
       return (a.delivery_date ?? "").localeCompare(b.delivery_date ?? "")
     })
-  }, [orders, filter])
+  }, [orders, filter, search])
 
   const readyCount = counts["WORKSHOP_COMPLETE"]
 
@@ -174,18 +185,29 @@ export function OrdersDashboard() {
         </Card>
       )}
 
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterValue)} className="gap-4">
-        <TabsList className="h-auto flex-wrap">
-          {FILTERS.map((f) => (
-            <TabsTrigger key={f.value} value={f.value} className="gap-1.5">
-              {f.label}
-              <span className="rounded-full bg-foreground/10 px-1.5 text-xs font-medium tabular-nums">
-                {counts[f.value]}
-              </span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterValue)} className="gap-4">
+          <TabsList className="h-auto flex-wrap">
+            {FILTERS.map((f) => (
+              <TabsTrigger key={f.value} value={f.value} className="gap-1.5">
+                {f.label}
+                <span className="rounded-full bg-foreground/10 px-1.5 text-xs font-medium tabular-nums">
+                  {counts[f.value]}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-8 w-56 pl-8 text-sm"
+            placeholder="Search reference, customer, phone…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
@@ -212,7 +234,7 @@ export function OrdersDashboard() {
               {!isLoading && visible.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
-                    No orders in this view.
+                    {search.trim() ? "No orders match your search." : "No orders in this view."}
                   </TableCell>
                 </TableRow>
               )}

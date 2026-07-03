@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Loader2,
   PackageCheck,
+  Search,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -356,15 +357,22 @@ function CountBadge({ count }: { count: number }) {
 // Issuance history table
 // ---------------------------------------------------------------------------
 
-function IssuanceHistory({ records }: { records: IssuanceRecord[] }) {
+function IssuanceHistory({
+  records,
+  searchActive,
+}: {
+  records: IssuanceRecord[]
+  searchActive?: boolean
+}) {
   if (records.length === 0) {
     return (
       <Empty>
         <EmptyHeader>
-          <EmptyTitle>No issuances yet</EmptyTitle>
+          <EmptyTitle>{searchActive ? "No matches" : "No issuances yet"}</EmptyTitle>
           <EmptyDescription>
-            Every batch of materials you issue is logged here with its order
-            reference and quantities.
+            {searchActive
+              ? "No issuance records match your search."
+              : "Every batch of materials you issue is logged here with its order reference and quantities."}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -425,9 +433,19 @@ export function IssueMaterialsScreen() {
   const { data: inventoryItems = [] } = useInventory()
   const { data: requests = [], isLoading: requestsLoading } = useMaterialRequests()
   const { data: issuanceRecords = [], isLoading: recordsLoading } = useIssuanceRecords()
+  const [historySearch, setHistorySearch] = useState("")
 
   const pendingCount = requests.length
   const lowStockCount = inventoryItems.filter((i) => i.is_low_stock).length
+
+  const historyQuery = historySearch.trim().toLowerCase()
+  const filteredHistory = historyQuery
+    ? issuanceRecords.filter(
+        (rec) =>
+          (rec.order_reference ?? "").toLowerCase().includes(historyQuery) ||
+          rec.inventory_item_name.toLowerCase().includes(historyQuery),
+      )
+    : issuanceRecords
 
   return (
     <div className="flex flex-col gap-6">
@@ -485,13 +503,24 @@ export function IssueMaterialsScreen() {
           </div>
         </TabsContent>
 
-        <TabsContent value="history" className="mt-4">
+        <TabsContent value="history" className="mt-4 flex flex-col gap-3">
+          {issuanceRecords.length > 0 && (
+            <div className="relative self-end">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-8 w-56 pl-8 text-sm"
+                placeholder="Search order or material…"
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+              />
+            </div>
+          )}
           {recordsLoading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <IssuanceHistory records={issuanceRecords} />
+            <IssuanceHistory records={filteredHistory} searchActive={historyQuery.length > 0} />
           )}
         </TabsContent>
       </Tabs>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MapPin, Package, ShoppingBag } from "lucide-react"
+import { MapPin, Package, Search, ShoppingBag } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 
 import api from "@/lib/api"
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -111,6 +112,7 @@ function MetricItem({
 
 export function BranchesView() {
   const [selected, setSelected] = useState<number | "all">("all")
+  const [search, setSearch] = useState("")
 
   const { data: branches = [] } = useQuery({
     queryKey: ["branches"],
@@ -150,8 +152,17 @@ export function BranchesView() {
   })
 
   // Filtered items for drill-down table
-  const filteredItems =
+  const branchScopedItems =
     selected === "all" ? items : items.filter((i) => i.branch_id === selected)
+  const itemsQuery = search.trim().toLowerCase()
+  const filteredItems = itemsQuery
+    ? branchScopedItems.filter(
+        (i) =>
+          i.sku.toLowerCase().includes(itemsQuery) ||
+          i.name.toLowerCase().includes(itemsQuery) ||
+          i.category.toLowerCase().includes(itemsQuery),
+      )
+    : branchScopedItems
 
   return (
     <div className="flex flex-col gap-6">
@@ -237,7 +248,7 @@ export function BranchesView() {
       {/* Inventory drill-down table */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
               <CardTitle>
                 {selected === "all"
@@ -250,11 +261,22 @@ export function BranchesView() {
                   : `Showing ${filteredItems.length} item${filteredItems.length === 1 ? "" : "s"}.`}
               </CardDescription>
             </div>
-            {selected !== "all" && (
-              <Button variant="ghost" size="sm" onClick={() => setSelected("all")}>
-                Clear filter
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-8 w-48 pl-8 text-sm"
+                  placeholder="Search SKU, name, category…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              {selected !== "all" && (
+                <Button variant="ghost" size="sm" onClick={() => setSelected("all")}>
+                  Clear filter
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -274,7 +296,7 @@ export function BranchesView() {
                 {filteredItems.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                      No items to display.
+                      {itemsQuery ? "No items match your search." : "No items to display."}
                     </TableCell>
                   </TableRow>
                 )}
