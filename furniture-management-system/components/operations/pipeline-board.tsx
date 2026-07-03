@@ -16,9 +16,10 @@ import type { OpsOrder, Stage } from "@/components/operations/types"
 type StageStatus = Stage["status"]
 
 const STAGE_STYLES: Record<StageStatus, string> = {
-  PENDING: "border-border bg-muted text-muted-foreground",
+  PENDING:
+    "border-yellow-300 bg-yellow-100 text-yellow-900 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200",
   ACTIVE:
-    "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
+    "border-blue-300 bg-blue-100 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200",
   DONE: "border-green-300 bg-green-100 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-200",
 }
 

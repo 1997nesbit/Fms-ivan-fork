@@ -39,10 +39,10 @@ const currency = new Intl.NumberFormat("en-US", {
 function PlannedOrderCard({ order }: { order: OpsOrder }) {
   const queryClient = useQueryClient()
   const [wages, setWages] = useState<string[]>(() =>
-    order.stages.map((s) => (s.agreed_wage ? String(s.agreed_wage) : ""))
+    order.stages.map((s) => (s.agreed_wage ? String(Math.round(Number(s.agreed_wage))) : ""))
   )
 
-  const parsed = wages.map((w) => Number.parseFloat(w) || 0)
+  const parsed = wages.map((w) => Number.parseInt(w, 10) || 0)
   const allPriced = parsed.length > 0 && parsed.every((w) => w > 0)
   const totalLabour = parsed.reduce((sum, w) => sum + w, 0)
 
@@ -137,13 +137,13 @@ function PlannedOrderCard({ order }: { order: OpsOrder }) {
                   <Input
                     type="number"
                     min="0"
+                    step="1"
                     inputMode="numeric"
                     value={wages[index]}
-                    onChange={(e) =>
-                      setWages((prev) =>
-                        prev.map((w, i) => (i === index ? e.target.value : w))
-                      )
-                    }
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "")
+                      setWages((prev) => prev.map((w, i) => (i === index ? digits : w)))
+                    }}
                     placeholder="0"
                     aria-label={`Wage for ${stage.stage_name}`}
                     className="h-9 w-36 pl-10 tabular-nums"

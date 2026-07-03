@@ -36,6 +36,7 @@ export interface ApiOrder {
   confirmed_price: string | null
   delivery_date: string | null
   notes: string
+  cancellation_reason: string
   branch_id: number
   created_by_id: number
   created_at: string
@@ -56,6 +57,7 @@ const FILTERS: { value: FilterValue; label: string }[] = [
   { value: "IN_PRODUCTION",     label: "In Production" },
   { value: "WORKSHOP_COMPLETE", label: "Ready" },
   { value: "DISPATCHED",        label: "Dispatched" },
+  { value: "CANCELLED",         label: "Cancelled" },
 ]
 
 // ---------------------------------------------------------------------------
@@ -121,6 +123,7 @@ export function OrdersDashboard() {
       IN_PRODUCTION: 0,
       WORKSHOP_COMPLETE: 0,
       DISPATCHED: 0,
+      CANCELLED: 0,
     }
     for (const o of orders) {
       if (o.status in base) base[o.status as FilterValue] += 1
@@ -245,7 +248,14 @@ export function OrdersDashboard() {
                       {formatDate(order.delivery_date)}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={order.status} />
+                      <div className="flex flex-col gap-1">
+                        <StatusBadge status={order.status} />
+                        {order.status === "CANCELLED" && order.cancellation_reason && (
+                          <span className="max-w-40 truncate text-xs text-muted-foreground">
+                            {order.cancellation_reason}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       {isReady ? (

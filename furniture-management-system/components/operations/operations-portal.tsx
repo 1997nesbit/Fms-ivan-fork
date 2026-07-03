@@ -10,6 +10,7 @@ import { OpsQueue } from "@/components/operations/ops-queue"
 import { PipelineBoard } from "@/components/operations/pipeline-board"
 import { MaterialRequestInbox } from "@/components/operations/material-request-inbox"
 import { TechnicianRoster } from "@/components/operations/technician-roster"
+import { LowStockBanner } from "@/components/stock-keeper/issue-materials-screen"
 import type { OpsOrder, MaterialRequest } from "@/components/operations/types"
 
 type OpsTab = "pipeline" | "queue" | "requests" | "technicians"
@@ -39,11 +40,22 @@ export function OperationsPortal() {
     placeholderData: (prev) => prev,
   })
 
+  const { data: lowStockCount = 0 } = useQuery({
+    queryKey: ["low-stock-count"],
+    queryFn: async () => {
+      const { data } = await api.get<{ results: { is_low_stock: boolean }[] }>("/stock/items/")
+      return data.results.filter((i) => i.is_low_stock).length
+    },
+    staleTime: 60_000,
+  })
+
   const queueCount = queueOrders.length
   const pendingCount = materialRequests.length
 
   return (
     <div className="flex flex-col gap-6">
+      <LowStockBanner count={lowStockCount} />
+
       <div className="flex items-start gap-3">
         <span className="mt-0.5 flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
           <Factory className="size-5" />

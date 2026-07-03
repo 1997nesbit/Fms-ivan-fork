@@ -39,6 +39,7 @@ def _order_payload(order, request=None):
         "confirmed_price": str(order.confirmed_price) if order.confirmed_price is not None else None,
         "delivery_date": str(order.delivery_date) if order.delivery_date else None,
         "notes": order.notes,
+        "cancellation_reason": order.cancellation_reason,
         "branch_id": order.branch_id,
         "created_by_id": order.created_by_id,
         "created_at": order.created_at.isoformat(),
@@ -63,6 +64,8 @@ def _validate_order_data(request):
             quoted_price = Decimal(raw_price)
             if quoted_price < 0:
                 errors["quoted_price"] = ["Price cannot be negative."]
+            elif quoted_price != quoted_price.to_integral_value():
+                errors["quoted_price"] = ["Enter a whole number (no cents)."]
         except InvalidOperation:
             errors["quoted_price"] = ["Enter a valid number."]
 
@@ -212,6 +215,10 @@ class OrderConfirmPriceView(APIView):
                 return Response(
                     {"errors": {"confirmed_price": ["Price cannot be negative."]}}, status=400
                 )
+            elif confirmed_price != confirmed_price.to_integral_value():
+                return Response(
+                    {"errors": {"confirmed_price": ["Enter a whole number (no cents)."]}}, status=400
+                )
         except InvalidOperation:
             return Response(
                 {"errors": {"confirmed_price": ["Enter a valid number."]}}, status=400
@@ -220,4 +227,29 @@ class OrderConfirmPriceView(APIView):
         order.confirmed_price = confirmed_price
         order.status = Order.Status.OPS_QUEUE
         order.save(update_fields=["confirmed_price", "status", "updated_at"])
+        return Response(_order_payload(order, request))
+
+
+class OrderRejectView(APIView):
+    """PATCH /api/orders/<pk>/reject/ — Director rejects, PRICE_REVIEW → CANCELLED."""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        if request.user.role != User.Role.DIRECTOR:
+            return Response({"detail": "Director role required."}, status=403)
+
+        try:
+            order = Order.objects.get(pk=pk, status=Order.Status.PRICE_REVIEW)
+        except Order.DoesNotExist:
+            return Response(
+                {"detail": "Order not found or not pending price review."}, status=404
+            )
+
+        reason = str(request.data.get("reason", "")).strip()
+        if not reason:
+            return Response({"errors": {"reason": ["This field is required."]}}, status=400)
+
+        order.cancellation_reason = reason
+        order.status = Order.Status.CANCELLED
+        order.save(update_fields=["cancellation_reason", "status", "updated_at"])
         return Response(_order_payload(order, request))

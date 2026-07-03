@@ -37,6 +37,7 @@ interface Order {
   status: string
   delivery_date: string | null
   created_at: string
+  updated_at: string
 }
 
 interface Payment {
@@ -121,41 +122,25 @@ export function WeeklyReportView({
     staleTime: 60_000,
   })
 
-  // Orders with a delivery_date (or created_at) inside the week range
-  const weekOrders = orders.filter((o) => {
-    const dateToCheck = o.delivery_date ?? o.created_at
-    return inRange(dateToCheck, range.start, range.end)
-  })
-
-  const weekPayments = payments.filter((p) =>
-    inRange(p.settled_at ?? p.created_at, range.start, range.end),
+  // Orders actually dispatched within this week (status transition tracked
+  // via updated_at, since Order has no dedicated dispatched_at field)
+  const weekOrders = orders.filter(
+    (o) => o.status === "DISPATCHED" && inRange(o.updated_at, range.start, range.end),
   )
 
-  // Revenue from week orders (confirmed or quoted price)
+  // Labour incurred (earned) during this week, regardless of settlement status
+  const weekPayments = payments.filter((p) => inRange(p.created_at, range.start, range.end))
+
+  // Revenue from dispatched orders (confirmed or quoted price)
   const weekRevenue = weekOrders.reduce(
     (s, o) => s + Number(o.confirmed_price ?? o.quoted_price ?? 0),
     0,
   )
 
-  // Labour due = sum of PENDING payments in this week (or all payments if no settled_at)
-  const weekLabour = weekPayments
-    .filter((p) => p.status === "PENDING")
-    .reduce((s, p) => s + Number(p.amount), 0)
+  // Total labour cost incurred this week (paid + pending)
+  const weekLabour = weekPayments.reduce((s, p) => s + Number(p.amount), 0)
 
   const netMargin = weekRevenue - weekLabour
-
-  // Payments by technician
-  const techPayments = Object.values(
-    weekPayments.reduce<
-      Record<string, { name: string; stages: number; amount: number }>
-    >((acc, p) => {
-      const key = p.technician_name ?? "Unknown"
-      if (!acc[key]) acc[key] = { name: key, stages: 0, amount: 0 }
-      acc[key].stages += 1
-      acc[key].amount += Number(p.amount)
-      return acc
-    }, {}),
-  ).sort((a, b) => b.amount - a.amount)
 
   return (
     <div className="flex flex-col gap-6">
@@ -175,7 +160,7 @@ export function WeeklyReportView({
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Orders in period" value={String(weekOrders.length)} />
         <StatCard label="Revenue (period)" value={formatMoney(weekRevenue)} />
-        <StatCard label="Labour pending" value={formatMoney(weekLabour)} />
+        <StatCard label="Labour cost (period)" value={formatMoney(weekLabour)} />
         <StatCard
           label="Net margin"
           value={formatMoney(netMargin)}
@@ -188,9 +173,9 @@ export function WeeklyReportView({
       {/* Orders table for the week */}
       <Card>
         <CardHeader>
-          <CardTitle>Orders — {range.label}</CardTitle>
+          <CardTitle>Orders dispatched — {range.label}</CardTitle>
           <CardDescription>
-            Orders with a delivery date or creation date within this period.
+            Orders marked Dispatched during this period.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -206,7 +191,6 @@ export function WeeklyReportView({
                     <TableHead>Order</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Item</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Revenue</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -218,9 +202,6 @@ export function WeeklyReportView({
                       <TableCell className="max-w-48 truncate text-muted-foreground">
                         {o.item_description}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-xs">{o.status}</Badge>
-                      </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatMoney(Number(o.confirmed_price ?? o.quoted_price ?? 0))}
                       </TableCell>
@@ -229,7 +210,7 @@ export function WeeklyReportView({
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={4} className="font-medium">Total</TableCell>
+                    <TableCell colSpan={3} className="font-medium">Total</TableCell>
                     <TableCell className="text-right font-bold tabular-nums">
                       {formatMoney(weekRevenue)}
                     </TableCell>
@@ -241,49 +222,72 @@ export function WeeklyReportView({
         </CardContent>
       </Card>
 
-      {/* Labour / technician payments for the week */}
-      {techPayments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Labour — {range.label}</CardTitle>
-            <CardDescription>
-              Technician payments created or settled during this period.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+      {/* Labour payments for the week */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Labour — {range.label}</CardTitle>
+          <CardDescription>
+            Technician payments earned during this period.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {weekPayments.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No labour payments in this period.
+            </p>
+          ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Technician</TableHead>
-                    <TableHead className="text-right">Stages</TableHead>
-                    <TableHead className="text-right">Amount due</TableHead>
+                    <TableHead>Stage</TableHead>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {techPayments.map((t) => (
-                    <TableRow key={t.name}>
-                      <TableCell className="font-medium">{t.name}</TableCell>
-                      <TableCell className="text-right tabular-nums">{t.stages}</TableCell>
+                  {weekPayments.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.technician_name ?? "—"}</TableCell>
+                      <TableCell>{p.stage_name}</TableCell>
+                      <TableCell className="tabular-nums text-muted-foreground">
+                        {p.order_reference}
+                      </TableCell>
+                      <TableCell>
+                        {p.status === "PENDING" ? (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+                          >
+                            Pending
+                          </Badge>
+                        ) : (
+                          <Badge className="border-transparent bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200">
+                            Paid
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums font-semibold">
-                        {formatMoney(t.amount)}
+                        {formatMoney(Number(p.amount))}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={2} className="font-medium">Total labour</TableCell>
+                    <TableCell colSpan={4} className="font-medium">Total labour</TableCell>
                     <TableCell className="text-right font-bold tabular-nums">
-                      {formatMoney(techPayments.reduce((s, t) => s + t.amount, 0))}
+                      {formatMoney(weekLabour)}
                     </TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

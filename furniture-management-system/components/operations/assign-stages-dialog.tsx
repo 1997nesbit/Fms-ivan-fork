@@ -38,7 +38,7 @@ function initRows(order: OpsOrder): StageRow[] {
       stage_name: s.stage_name,
       technician_id: String(s.assigned_technician?.id ?? ""),
       allotted_time: s.allotted_time,
-      wage: s.agreed_wage ?? "",
+      wage: s.agreed_wage ? String(Math.round(Number(s.agreed_wage))) : "",
     }))
   }
   return [blankRow()]
@@ -80,36 +80,32 @@ export function AssignStagesDialog({
   const allWagesSet =
     rows.length > 0 && rows.every((r) => r.wage.trim().length > 0 && Number(r.wage) >= 0)
 
-  // Phase: after save plan succeeds, we can start work
-  const [savedOrderId, setSavedOrderId] = useState<number | null>(
-    order.stages.length > 0 ? order.id : null
-  )
+  async function savePlanRequest(): Promise<OpsOrder> {
+    // 1. Assign stages
+    const assignBody = rows.map((r) => ({
+      stage_name: r.stage_name.trim(),
+      technician_id: Number(r.technician_id),
+      allotted_time: r.allotted_time || "00:00:00",
+    }))
+    const { data: updatedOrder } = await api.post<OpsOrder>(
+      `/production/orders/${order.id}/assign-stages/`,
+      assignBody
+    )
+
+    // 2. Set wages using returned stage IDs
+    const wageBody = updatedOrder.stages.map((s, i) => ({
+      stage_id: s.id,
+      wage: rows[i]?.wage ?? "0",
+    }))
+    await api.patch(`/production/orders/${order.id}/set-wages/`, wageBody)
+
+    return updatedOrder
+  }
 
   const savePlan = useMutation({
-    mutationFn: async () => {
-      // 1. Assign stages
-      const assignBody = rows.map((r) => ({
-        stage_name: r.stage_name.trim(),
-        technician_id: Number(r.technician_id),
-        allotted_time: r.allotted_time || "00:00:00",
-      }))
-      const { data: updatedOrder } = await api.post<OpsOrder>(
-        `/production/orders/${order.id}/assign-stages/`,
-        assignBody
-      )
-
-      // 2. Set wages using returned stage IDs
-      const wageBody = updatedOrder.stages.map((s, i) => ({
-        stage_id: s.id,
-        wage: rows[i]?.wage ?? "0",
-      }))
-      await api.patch(`/production/orders/${order.id}/set-wages/`, wageBody)
-
-      return updatedOrder
-    },
+    mutationFn: savePlanRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ops-queue"] })
-      setSavedOrderId(order.id)
       toast.success("Production plan saved.")
     },
     onError: (err: {
@@ -120,7 +116,12 @@ export function AssignStagesDialog({
   })
 
   const startWork = useMutation({
-    mutationFn: () => api.post(`/production/orders/${order.id}/start-work/`),
+    mutationFn: async () => {
+      // Always save the current plan + wages first, so Start Work works
+      // whether or not "Save plan" was clicked beforehand.
+      await savePlanRequest()
+      await api.post(`/production/orders/${order.id}/start-work/`)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ops-queue"] })
       queryClient.invalidateQueries({ queryKey: ["pipeline"] })
@@ -134,7 +135,7 @@ export function AssignStagesDialog({
     },
   })
 
-  const canStart = savedOrderId !== null && allWagesSet
+  const canStart = allStagesValid && allWagesSet
 
   return (
     <Dialog
@@ -256,9 +257,11 @@ export function AssignStagesDialog({
                     id={`wage-${i}`}
                     type="number"
                     min="0"
+                    step="1"
+                    inputMode="numeric"
                     placeholder="0"
                     value={row.wage}
-                    onChange={(e) => updateRow(i, "wage", e.target.value)}
+                    onChange={(e) => updateRow(i, "wage", e.target.value.replace(/\D/g, ""))}
                   />
                 </div>
               </div>
@@ -293,7 +296,7 @@ export function AssignStagesDialog({
           </Button>
           {canStart && (
             <Button
-              disabled={startWork.isPending}
+              disabled={startWork.isPending || savePlan.isPending}
               onClick={() => startWork.mutate()}
             >
               {startWork.isPending && <Loader2 className="size-4 animate-spin" />}
