@@ -6,14 +6,18 @@ from .views import (
     MyEarningsView,
     MyQueueView,
     OpsQueueView,
+    PaymentListView,
     PipelineView,
     SetWagesView,
+    SettlePaymentsView,
     StartWorkView,
 )
 
 urlpatterns = [
     path("my-queue/", MyQueueView.as_view(), name="production_my_queue"),
     path("my-earnings/", MyEarningsView.as_view(), name="production_my_earnings"),
+    path("payments/", PaymentListView.as_view(), name="production_payments"),
+    path("payments/<str:week>/settle/", SettlePaymentsView.as_view(), name="production_settle_payments"),
     path("stages/<int:pk>/complete/", CompleteStageView.as_view(), name="production_stage_complete"),
     path("ops-queue/", OpsQueueView.as_view(), name="production_ops_queue"),
     path("pipeline/", PipelineView.as_view(), name="production_pipeline"),

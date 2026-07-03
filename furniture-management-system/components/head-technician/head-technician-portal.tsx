@@ -40,6 +40,12 @@ interface Earning {
 // Helpers
 // ---------------------------------------------------------------------------
 
+const currency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "TZS",
+  maximumFractionDigits: 0,
+})
+
 function getThisWeekRange(): { start: Date; end: Date } {
   const now = new Date()
   now.setHours(12, 0, 0, 0)
@@ -147,7 +153,7 @@ export function HeadTechnicianPortal() {
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground leading-none mb-0.5">This week</p>
               <p className="text-base font-semibold tabular-nums leading-none text-blue-600 dark:text-blue-400">
-                ${weekEarnings.toLocaleString()}
+                {currency.format(weekEarnings)}
               </p>
             </div>
           </div>
@@ -170,7 +176,7 @@ export function HeadTechnicianPortal() {
                     : "text-green-600 dark:text-green-400"
                 )}
               >
-                ${unsettledTotal.toLocaleString()}
+                {currency.format(unsettledTotal)}
               </p>
             </div>
           </div>

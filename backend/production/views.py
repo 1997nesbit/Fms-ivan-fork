@@ -1,3 +1,4 @@
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
@@ -91,6 +92,79 @@ class MyEarningsView(APIView):
             }
             for p in payments
         ])
+
+
+class PaymentListView(APIView):
+    """GET /api/production/payments/ — Director-only list of all technician payments."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.Role.DIRECTOR:
+            return Response({"detail": "Director role required."}, status=403)
+
+        payments = (
+            TechnicianPayment.objects
+            .select_related("technician", "stage", "stage__order")
+            .order_by("-created_at")
+        )
+        return Response([
+            {
+                "id": p.id,
+                "amount": str(p.amount),
+                "status": p.status,
+                "technician_id": p.technician_id,
+                "technician_name": p.technician.get_full_name() or p.technician.username,
+                "stage_name": p.stage.stage_name,
+                "order_reference": p.stage.order.reference_number,
+                "settled_at": p.settled_at.isoformat() if p.settled_at else None,
+                "created_at": p.created_at.isoformat(),
+            }
+            for p in payments
+        ])
+
+
+class SettlePaymentsView(APIView):
+    """
+    PATCH /api/production/payments/<week>/settle/ — Director marks a technician's
+    PENDING payments for a given week (Monday, YYYY-MM-DD) as PAID.
+
+    Body: { "technician_id": int }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, week):
+        if request.user.role != User.Role.DIRECTOR:
+            return Response({"detail": "Director role required."}, status=403)
+
+        technician_id = request.data.get("technician_id")
+        if not technician_id:
+            return Response({"errors": {"technician_id": ["This field is required."]}}, status=400)
+
+        try:
+            week_start = date.fromisoformat(week)
+        except ValueError:
+            return Response({"detail": "Invalid week; use YYYY-MM-DD (Monday)."}, status=400)
+
+        window_start = timezone.make_aware(datetime.combine(week_start, datetime.min.time()))
+        window_end = window_start + timedelta(days=7)
+
+        payments = TechnicianPayment.objects.filter(
+            technician_id=technician_id,
+            status=TechnicianPayment.Status.PENDING,
+            created_at__gte=window_start,
+            created_at__lt=window_end,
+        )
+        if not payments.exists():
+            return Response(
+                {"detail": "No pending payments found for that technician and week."}, status=404
+            )
+
+        settled_count = payments.update(
+            status=TechnicianPayment.Status.PAID,
+            settled_at=timezone.now(),
+            settled_by=request.user,
+        )
+        return Response({"ok": True, "settled_count": settled_count})
 
 
 class CompleteStageView(APIView):

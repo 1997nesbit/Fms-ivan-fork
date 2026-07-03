@@ -1,3 +1,8 @@
 ﻿from django.urls import path
-urlpatterns = []
+
+from .views import SaleListView
+
+urlpatterns = [
+    path("sales/", SaleListView.as_view(), name="shop_sale_list"),
+]
 

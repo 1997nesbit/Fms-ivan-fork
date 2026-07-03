@@ -37,6 +37,12 @@ interface Earning {
 // Helpers
 // ---------------------------------------------------------------------------
 
+const currency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "TZS",
+  maximumFractionDigits: 0,
+})
+
 /** ISO date string → Monday of that week as ISO date string */
 function mondayOf(iso: string): string {
   const d = new Date(iso)
@@ -154,7 +160,7 @@ export function TechFinancialsScreen() {
           <CardContent className="py-4 px-4">
             <p className="text-xs text-muted-foreground mb-1">Total earned</p>
             <p className="text-2xl font-semibold tabular-nums">
-              ${totalEarned.toLocaleString()}
+              {currency.format(totalEarned)}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">all weeks</p>
           </CardContent>
@@ -170,7 +176,7 @@ export function TechFinancialsScreen() {
                   : "text-muted-foreground"
               )}
             >
-              ${totalOwed.toLocaleString()}
+              {currency.format(totalOwed)}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {unsettledCount} batch{unsettledCount !== 1 ? "es" : ""} pending
@@ -241,24 +247,31 @@ function BatchCard({ batch }: { batch: WeekBatch }) {
               : "text-blue-700 dark:text-blue-400"
           )}
         >
-          ${batch.total.toLocaleString()}
+          {currency.format(batch.total)}
         </CardTitle>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-3 pt-0">
-        <div
-          className={cn(
-            "rounded-md px-3 py-2 text-sm",
-            settled
-              ? "bg-green-100/60 dark:bg-green-900/30"
-              : "bg-blue-100/60 dark:bg-blue-900/30"
-          )}
-        >
-          <span className="text-muted-foreground">
-            {batch.earnings.length} stage{batch.earnings.length !== 1 ? "s" : ""}
-          </span>
-          {" — "}
-          <span className="font-medium">${batch.total.toLocaleString()} total</span>
+        <div className="flex flex-col gap-1.5">
+          {batch.earnings.map((e) => (
+            <div
+              key={e.id}
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm",
+                settled
+                  ? "bg-green-100/60 dark:bg-green-900/30"
+                  : "bg-blue-100/60 dark:bg-blue-900/30"
+              )}
+            >
+              <div className="flex flex-col">
+                <span className="font-medium">{e.stage_name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {e.order_reference}
+                </span>
+              </div>
+              <span className="shrink-0 tabular-nums">{currency.format(Number(e.amount))}</span>
+            </div>
+          ))}
         </div>
 
         {settled && batch.settledAt ? (
