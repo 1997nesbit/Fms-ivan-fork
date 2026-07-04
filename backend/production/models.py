@@ -20,9 +20,9 @@ class ProductionStage(models.Model):
         blank=True,
         related_name="assigned_stages",
     )
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     agreed_wage = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     allotted_time = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     activated_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)

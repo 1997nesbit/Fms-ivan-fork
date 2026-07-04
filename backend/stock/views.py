@@ -1,6 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import F, Q
+from django.db.models import F, Q, Sum
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
@@ -37,6 +37,13 @@ def _item_payload(item):
 def _material_request_payload(req):
     tech = req.requested_by
     reviewer = req.reviewed_by
+    issuance_count = req.issuances.count()
+    issued_total = (
+        req.issuances.aggregate(total=Sum("quantity_issued"))["total"] or Decimal("0")
+    )
+    remaining = req.quantity - issued_total
+    if remaining < 0:
+        remaining = Decimal("0")
     return {
         "id": req.id,
         "stage_id": req.stage_id,
@@ -44,6 +51,10 @@ def _material_request_payload(req):
         "order_reference": req.stage.order.reference_number if req.stage else None,
         "material_name": req.material_name,
         "quantity": str(req.quantity),
+        "quantity_issued": str(issued_total),
+        "quantity_remaining": str(remaining),
+        "issuance_count": issuance_count,
+        "next_issuance_type": "INITIAL" if issuance_count == 0 else "ADDITIONAL",
         "unit": req.unit,
         "status": req.status,
         "requested_by_id": req.requested_by_id,
@@ -57,6 +68,11 @@ def _material_request_payload(req):
 
 
 def _issuance_payload(iss):
+    sequence_for_request = None
+    if iss.material_request_id:
+        sequence_for_request = Issuance.objects.filter(
+            material_request_id=iss.material_request_id, id__lte=iss.id
+        ).count()
     return {
         "id": iss.id,
         "order_reference": iss.order.reference_number,
@@ -64,6 +80,7 @@ def _issuance_payload(iss):
         "inventory_item_id": iss.inventory_item_id,
         "inventory_item_name": iss.inventory_item.name,
         "material_request_id": iss.material_request_id,
+        "sequence_for_request": sequence_for_request,
         "quantity_issued": str(iss.quantity_issued),
         "unit": iss.inventory_item.unit,
         "issuance_type": iss.issuance_type,

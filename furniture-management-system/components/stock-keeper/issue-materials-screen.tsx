@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner"
 
 import api from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, formatQty, toArray } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -67,6 +67,10 @@ interface MaterialRequest {
   order_reference: string | null
   material_name: string
   quantity: string
+  quantity_issued: string
+  quantity_remaining: string
+  issuance_count: number
+  next_issuance_type: "INITIAL" | "ADDITIONAL"
   unit: string
   status: "PENDING" | "APPROVED" | "REJECTED" | "ISSUED"
   requested_by_name: string | null
@@ -79,6 +83,8 @@ interface IssuanceRecord {
   stage_id: number | null
   inventory_item_id: number
   inventory_item_name: string
+  material_request_id: number | null
+  sequence_for_request: number | null
   quantity_issued: string
   unit: string
   issuance_type: "INITIAL" | "ADDITIONAL"
@@ -147,9 +153,14 @@ function IssueMaterialDialog({
 }) {
   const queryClient = useQueryClient()
   const [invItemId, setInvItemId] = useState("")
-  const [qty, setQty] = useState(request.quantity)
-  const [issuanceType, setIssuanceType] = useState<"INITIAL" | "ADDITIONAL">("INITIAL")
+  const [qty, setQty] = useState(formatQty(request.quantity_remaining))
   const [error, setError] = useState<string | null>(null)
+
+  // Whether this will be recorded as the Initial or an Additional batch is
+  // decided by the server from issuance history — not a choice the stock
+  // keeper makes, so it can't be mislabelled.
+  const nextSequence = request.issuance_count + 1
+  const nextTypeLabel = request.next_issuance_type === "INITIAL" ? "Initial" : "Additional"
 
   const issue = useMutation({
     mutationFn: () =>
@@ -158,7 +169,6 @@ function IssueMaterialDialog({
         inventory_item_id: Number(invItemId),
         quantity_issued: qty,
         stage_id: request.stage_id,
-        issuance_type: issuanceType,
         material_request_id: request.id,
       }),
     onSuccess: () => {
@@ -188,9 +198,18 @@ function IssueMaterialDialog({
         </DialogHeader>
         <div className="rounded-lg bg-muted/60 p-3 text-sm space-y-1">
           <p><span className="font-medium">Requested:</span> {request.material_name}</p>
-          <p><span className="font-medium">Quantity:</span> {request.quantity} {request.unit}</p>
+          <p><span className="font-medium">Total needed:</span> {formatQty(request.quantity)} {request.unit}</p>
+          {Number(request.quantity_issued) > 0 && (
+            <p className="text-primary">
+              <span className="font-medium">Already issued:</span> {formatQty(request.quantity_issued)} {request.unit} — {formatQty(request.quantity_remaining)} {request.unit} remaining
+            </p>
+          )}
           <p><span className="font-medium">Order:</span> {request.order_reference ?? "—"}</p>
           <p><span className="font-medium">By:</span> {request.requested_by_name ?? "—"}</p>
+          <p>
+            <span className="font-medium">This will be recorded as:</span>{" "}
+            issuance #{nextSequence} ({nextTypeLabel})
+          </p>
         </div>
         <form
           onSubmit={(e) => { e.preventDefault(); setError(null); issue.mutate() }}
@@ -208,7 +227,7 @@ function IssueMaterialDialog({
               <option value="">Select item…</option>
               {inventoryItems.map((i) => (
                 <option key={i.id} value={String(i.id)}>
-                  {i.name} ({i.current_quantity} {i.unit} available)
+                  {i.name} ({formatQty(i.current_quantity)} {i.unit} available)
                 </option>
               ))}
             </select>
@@ -224,18 +243,6 @@ function IssueMaterialDialog({
               onChange={(e) => setQty(e.target.value)}
               required
             />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="issuance-type">Issuance type</FieldLabel>
-            <select
-              id="issuance-type"
-              className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-              value={issuanceType}
-              onChange={(e) => setIssuanceType(e.target.value as "INITIAL" | "ADDITIONAL")}
-            >
-              <option value="INITIAL">Initial</option>
-              <option value="ADDITIONAL">Additional</option>
-            </select>
           </Field>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
@@ -265,6 +272,7 @@ function RequestCard({
 }) {
   const [expanded, setExpanded] = useState(true)
   const [issueOpen, setIssueOpen] = useState(false)
+  const isPartiallyIssued = Number(request.quantity_issued) > 0
 
   return (
     <Card>
@@ -284,9 +292,15 @@ function RequestCard({
             </span>
             <span>{request.material_name}</span>
           </span>
-          <Badge variant="outline" className="border-primary/50">
-            Approved
-          </Badge>
+          {isPartiallyIssued ? (
+            <Badge className="gap-1 border border-orange-400 bg-orange-50 text-orange-800 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300">
+              Partially issued
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-primary/50">
+              Approved
+            </Badge>
+          )}
         </CardTitle>
       </CardHeader>
 
@@ -297,6 +311,7 @@ function RequestCard({
               <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Requested qty</TableHead>
+                <TableHead>Progress</TableHead>
                 <TableHead>Requested by</TableHead>
                 <TableHead>Date</TableHead>
               </TableRow>
@@ -305,7 +320,16 @@ function RequestCard({
               <TableRow>
                 <TableCell className="font-medium">{request.material_name}</TableCell>
                 <TableCell className="tabular-nums">
-                  {request.quantity} {request.unit}
+                  {formatQty(request.quantity)} {request.unit}
+                </TableCell>
+                <TableCell className="tabular-nums">
+                  {isPartiallyIssued ? (
+                    <span className="text-blue-600 dark:text-blue-400">
+                      {formatQty(request.quantity_issued)} issued · {formatQty(request.quantity_remaining)} left
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Not started</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {request.requested_by_name ?? "—"}
@@ -323,7 +347,9 @@ function RequestCard({
           <div className="flex justify-end">
             <Button onClick={() => setIssueOpen(true)}>
               <PackageCheck data-icon="inline-start" />
-              Issue materials
+              {isPartiallyIssued
+                ? `Issue remaining (${formatQty(request.quantity_remaining)} ${request.unit})`
+                : "Issue materials"}
             </Button>
           </div>
         </CardContent>
@@ -398,10 +424,13 @@ function IssuanceHistory({ records }: { records: IssuanceRecord[] }) {
                   className={cn(rec.issuance_type === "ADDITIONAL" && "border-primary/50")}
                 >
                   {rec.issuance_type === "INITIAL" ? "Initial" : "Additional"}
+                  {rec.sequence_for_request && rec.sequence_for_request > 1
+                    ? ` · #${rec.sequence_for_request}`
+                    : ""}
                 </Badge>
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {rec.quantity_issued} {rec.unit}
+                {formatQty(rec.quantity_issued)} {rec.unit}
               </TableCell>
               <TableCell className="text-right text-sm text-muted-foreground tabular-nums whitespace-nowrap">
                 {new Date(rec.issued_at).toLocaleDateString("en-US", {
@@ -422,10 +451,12 @@ function IssuanceHistory({ records }: { records: IssuanceRecord[] }) {
 // ---------------------------------------------------------------------------
 
 export function IssueMaterialsScreen() {
-  const { data: inventoryItems = [] } = useInventory()
-  const { data: requests = [], isLoading: requestsLoading } = useMaterialRequests()
+  const { data: inventoryItemsData = [] } = useInventory()
+  const { data: requestsData = [], isLoading: requestsLoading } = useMaterialRequests()
   const { data: issuanceRecords = [], isLoading: recordsLoading } = useIssuanceRecords()
 
+  const inventoryItems = toArray(inventoryItemsData)
+  const requests = toArray(requestsData)
   const pendingCount = requests.length
   const lowStockCount = inventoryItems.filter((i) => i.is_low_stock).length
 

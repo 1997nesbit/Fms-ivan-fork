@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import api from "@/lib/api"
+import { formatQty, toArray } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -152,16 +153,17 @@ export function StockOverview() {
   })
 
   const lowStockItems = useMemo(
-    () => items.filter((i) => i.is_low_stock),
+    () => toArray(items).filter((i) => i.is_low_stock),
     [items]
   )
 
   const pendingRestocks = useMemo(
-    () => restockRequests.filter((r) => r.status === "PENDING"),
+    () => toArray(restockRequests).filter((r) => r.status === "PENDING"),
     [restockRequests]
   )
 
-  const recentIssuances = useMemo(() => issuances.slice(0, 8), [issuances])
+  const recentIssuances = useMemo(() => toArray(issuances).slice(0, 8), [issuances])
+  const safeRequests = toArray(requests)
 
   if (itemsLoading) {
     return (
@@ -190,15 +192,15 @@ export function StockOverview() {
         />
         <KpiCard
           label="Pending requests"
-          value={requests.length}
+          value={safeRequests.length}
           sub="Approved, awaiting issue"
           icon={ClipboardCheck}
-          alert={requests.length > 0}
+          alert={safeRequests.length > 0}
         />
         <KpiCard
           label="Open restock req."
           value={pendingRestocks.length}
-          sub={`${restockRequests.length} total submitted`}
+          sub={`${toArray(restockRequests).length} total submitted`}
           icon={RotateCcw}
         />
       </div>
@@ -235,10 +237,10 @@ export function StockOverview() {
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.name}</TableCell>
                         <TableCell className="text-right tabular-nums text-destructive">
-                          {item.current_quantity} {item.unit}
+                          {formatQty(item.current_quantity)} {item.unit}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {item.minimum_threshold} {item.unit}
+                          {formatQty(item.minimum_threshold)} {item.unit}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
                           {deficit > 0 ? `${deficit} ${item.unit}` : "—"}
@@ -293,7 +295,7 @@ export function StockOverview() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                        {rec.quantity_issued} {rec.unit}
+                        {formatQty(rec.quantity_issued)} {rec.unit}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -305,7 +307,7 @@ export function StockOverview() {
       </div>
 
       {/* Pending material requests */}
-      {requests.length > 0 && (
+      {safeRequests.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -324,7 +326,7 @@ export function StockOverview() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {requests.slice(0, 5).map((req) => (
+                {safeRequests.slice(0, 5).map((req) => (
                   <TableRow key={req.id}>
                     <TableCell>
                       <span className="font-mono text-xs text-muted-foreground">
@@ -333,7 +335,7 @@ export function StockOverview() {
                     </TableCell>
                     <TableCell className="font-medium">{req.material_name}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {req.quantity} {req.unit}
+                      {formatQty(req.quantity)} {req.unit}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {req.requested_by_name ?? "—"}

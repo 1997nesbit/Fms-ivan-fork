@@ -186,18 +186,17 @@ class MaterialRequestIssuanceLinkTests(TestCase):
             status=MaterialRequest.Status.APPROVED,
         )
 
-    def _issue(self, quantity="4"):
+    def _issue(self, quantity="4", issuance_type=None):
         self.client.force_authenticate(self.stock_keeper)
-        return self.client.post(
-            "/api/stock/issuances/",
-            {
-                "order_id": self.order.id,
-                "inventory_item_id": self.item.id,
-                "quantity_issued": quantity,
-                "material_request_id": self.request.id,
-            },
-            format="json",
-        )
+        payload = {
+            "order_id": self.order.id,
+            "inventory_item_id": self.item.id,
+            "quantity_issued": quantity,
+            "material_request_id": self.request.id,
+        }
+        if issuance_type is not None:
+            payload["issuance_type"] = issuance_type
+        return self.client.post("/api/stock/issuances/", payload, format="json")
 
     def test_successful_issuance_links_request_and_marks_issued(self):
         resp = self._issue()
@@ -236,6 +235,61 @@ class MaterialRequestIssuanceLinkTests(TestCase):
 
         self.item.refresh_from_db()
         self.assertEqual(self.item.current_quantity, Decimal("10"))
+
+    def test_partial_issuance_leaves_request_approved_and_reissuable(self):
+        # Stock Keeper only has 2 of the 4 requested boards on hand right now.
+        first = self._issue(quantity="2")
+        self.assertEqual(first.status_code, 201, first.content)
+        self.assertEqual(first.data["material_request_id"], self.request.id)
+        self.assertEqual(first.data["issuance_type"], "INITIAL")
+        self.assertEqual(first.data["sequence_for_request"], 1)
+
+        self.request.refresh_from_db()
+        self.assertEqual(
+            self.request.status, MaterialRequest.Status.APPROVED,
+            "a partial issuance must not close out the request",
+        )
+
+        # Still shows up in the Stock Keeper's issue queue, not silently hidden.
+        self.client.force_authenticate(self.stock_keeper)
+        resp = self.client.get("/api/stock/material-requests/")
+        ids = [r["id"] for r in resp.data["results"]]
+        self.assertIn(self.request.id, ids)
+        row = next(r for r in resp.data["results"] if r["id"] == self.request.id)
+        self.assertEqual(row["status"], "APPROVED")
+        self.assertEqual(Decimal(row["quantity_issued"]), Decimal("2"))
+        self.assertEqual(Decimal(row["quantity_remaining"]), Decimal("2"))
+        self.assertEqual(row["issuance_count"], 1)
+        self.assertEqual(row["next_issuance_type"], "ADDITIONAL")
+
+        # The remainder can be issued against the same request.
+        second = self._issue(quantity="2")
+        self.assertEqual(second.status_code, 201, second.content)
+        self.assertEqual(second.data["issuance_type"], "ADDITIONAL")
+        self.assertEqual(second.data["sequence_for_request"], 2)
+
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.status, MaterialRequest.Status.ISSUED)
+        self.assertEqual(Issuance.objects.filter(material_request=self.request).count(), 2)
+
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.current_quantity, Decimal("6"))
+
+        # And now that it's fully fulfilled, a third attempt is rejected.
+        third = self._issue(quantity="1")
+        self.assertEqual(third.status_code, 400)
+        self.assertIn("already been issued", third.data["detail"])
+
+    def test_issuance_type_choice_is_ignored_once_linked_to_a_request(self):
+        # A stock keeper mislabelling a top-up as "Initial" must not be trusted --
+        # the server derives the real type from issuance history instead.
+        first = self._issue(quantity="2", issuance_type="ADDITIONAL")
+        self.assertEqual(first.status_code, 201, first.content)
+        self.assertEqual(first.data["issuance_type"], "INITIAL")
+
+        second = self._issue(quantity="2", issuance_type="INITIAL")
+        self.assertEqual(second.status_code, 201, second.content)
+        self.assertEqual(second.data["issuance_type"], "ADDITIONAL")
 
     def test_issue_queue_excludes_issued_requests(self):
         other_request = MaterialRequest.objects.create(
