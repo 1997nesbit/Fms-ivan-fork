@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner"
 
 import api from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, formatQty } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -233,7 +233,7 @@ function NewRestockDialog({
                 <option value="">None</option>
                 {inventoryItems.map((i) => (
                   <option key={i.id} value={String(i.id)}>
-                    {i.name} ({i.current_quantity} {i.unit} on hand)
+                    {i.name} ({formatQty(i.current_quantity)} {i.unit} on hand)
                   </option>
                 ))}
               </select>
@@ -370,7 +370,7 @@ function RequestsTable({ requests }: { requests: RestockRequest[] }) {
                 </div>
               </TableCell>
               <TableCell className="tabular-nums">
-                {req.quantity_needed} {req.unit}
+                {formatQty(req.quantity_needed)} {req.unit}
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {req.estimated_cost
@@ -449,11 +449,11 @@ function LowStockSuggestions({
                   <TableCell className="text-right tabular-nums text-destructive">
                     <span className="flex items-center justify-end gap-1">
                       <AlertTriangle className="size-3" />
-                      {item.current_quantity} {item.unit}
+                      {formatQty(item.current_quantity)} {item.unit}
                     </span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {item.minimum_threshold} {item.unit}
+                    {formatQty(item.minimum_threshold)} {item.unit}
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-medium">
                     {deficit > 0 ? `${deficit} ${item.unit}` : "—"}

@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import api from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, formatQty } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -96,7 +96,7 @@ function PendingCard({
           <div className="space-y-1">
             <CardTitle className="text-base">{req.item_name}</CardTitle>
             <CardDescription>
-              {req.quantity_needed} {req.unit}
+              {formatQty(req.quantity_needed)} {req.unit}
               {req.estimated_cost
                 ? ` · Est. ${formatMoney(Number(req.estimated_cost))}`
                 : ""}

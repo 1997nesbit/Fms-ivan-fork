@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Warehouse } from "lucide-react"
 
 import api from "@/lib/api"
+import { toArray } from "@/lib/utils"
 import { StockOverview } from "@/components/stock-keeper/stock-overview"
 import { InventoryLedger } from "@/components/stock-keeper/inventory-ledger"
 import { IssueMaterialsScreen } from "@/components/stock-keeper/issue-materials-screen"
@@ -49,10 +50,10 @@ function PageShell({
   })
 
   const lowStockCount = useMemo(
-    () => items.filter((i) => i.is_low_stock).length,
+    () => toArray(items).filter((i) => i.is_low_stock).length,
     [items]
   )
-  const pendingIssuanceCount = requests.length
+  const pendingIssuanceCount = toArray(requests).length
 
   const metaItems = useMemo(
     () => [

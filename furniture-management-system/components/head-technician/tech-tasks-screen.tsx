@@ -6,6 +6,7 @@ import {
   Hammer,
   Lock,
   PackageCheck,
+  PackageMinus,
   PackagePlus,
   XCircle,
 } from "lucide-react"
@@ -13,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import api from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, formatQty, toArray } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -59,10 +60,23 @@ interface MaterialRequest {
   order_reference: string
   material_name: string
   quantity: number
+  quantity_issued: string
+  quantity_remaining: string
   unit: string
   status: "PENDING" | "APPROVED" | "REJECTED" | "ISSUED"
   requested_by_name: string
   created_at: string
+}
+
+// A request that's APPROVED but has some (not all) quantity issued gets its
+// own display state — visually distinct from both "not started" and "done".
+type DisplayStatus = MaterialRequest["status"] | "PARTIALLY_ISSUED"
+
+function displayStatus(req: MaterialRequest): DisplayStatus {
+  if (req.status === "APPROVED" && Number(req.quantity_issued) > 0) {
+    return "PARTIALLY_ISSUED"
+  }
+  return req.status
 }
 
 // ---------------------------------------------------------------------------
@@ -70,7 +84,7 @@ interface MaterialRequest {
 // ---------------------------------------------------------------------------
 
 const REQUEST_STATUS: Record<
-  MaterialRequest["status"],
+  DisplayStatus,
   { label: string; badge: string; row: string; Icon: typeof CheckCircle2 }
 > = {
   PENDING: {
@@ -91,6 +105,13 @@ const REQUEST_STATUS: Record<
     badge: "border border-border bg-muted text-muted-foreground",
     row: "border-l-muted-foreground/40 bg-muted/40",
     Icon: XCircle,
+  },
+  PARTIALLY_ISSUED: {
+    label: "Partially issued",
+    badge:
+      "border border-orange-400 bg-orange-50 text-orange-800 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300",
+    row: "border-l-orange-400 bg-orange-50/40 dark:bg-orange-950/20",
+    Icon: PackageMinus,
   },
   ISSUED: {
     label: "Issued",
@@ -133,7 +154,10 @@ export function TechTasksScreen() {
     },
     refetchInterval: 60_000,
   })
-  const myRequests = (requestsData ?? []).sort((a, b) =>
+  // Defensive: this query key is shared across several screens, so normalize
+  // before sorting in case any of them ever cache something other than the
+  // plain array this screen expects (a paginated envelope, an error body, etc).
+  const myRequests = toArray<MaterialRequest>(requestsData).sort((a, b) =>
     b.created_at.localeCompare(a.created_at)
   )
 
@@ -153,7 +177,7 @@ export function TechTasksScreen() {
   })
 
   // Non-done stages, sorted Active → Pending.
-  const assigned = stages
+  const assigned = toArray<QueueStage>(stages)
     .filter((s) => s.status !== "DONE")
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
 
@@ -220,7 +244,8 @@ function MyRequestsPanel({ requests }: { requests: MaterialRequest[] }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-2 pt-0">
         {requests.map((req) => {
-          const cfg = REQUEST_STATUS[req.status]
+          const status = displayStatus(req)
+          const cfg = REQUEST_STATUS[status]
           const { Icon } = cfg
           return (
             <div
@@ -232,10 +257,12 @@ function MyRequestsPanel({ requests }: { requests: MaterialRequest[] }) {
             >
               <div className="flex flex-col">
                 <span className="text-sm font-medium">
-                  {req.quantity} {req.unit} — {req.material_name}
+                  {formatQty(req.quantity)} {req.unit} — {req.material_name}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {req.order_reference}
+                  {status === "PARTIALLY_ISSUED" &&
+                    ` · ${formatQty(req.quantity_issued)} ${req.unit} received so far, ${formatQty(req.quantity_remaining)} ${req.unit} still owed`}
                 </span>
               </div>
               <Badge className={cn("gap-1", cfg.badge)}>
