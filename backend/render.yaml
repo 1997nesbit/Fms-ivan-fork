@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: fms-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "bash build.sh"
+    startCommand: "gunicorn core.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      # Update these two to match the service name/frontend domain you actually deploy with.
+      - key: ALLOWED_HOSTS
+        value: fms-backend.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://fms-backend.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://your-frontend.vercel.app
+      # Paste the Neon connection string here manually in the Render dashboard
+      # (Environment tab) after the service is created — not stored in git.
+      - key: DATABASE_URL
+        sync: false

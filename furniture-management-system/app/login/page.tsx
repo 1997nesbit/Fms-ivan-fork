@@ -1,6 +1,6 @@
 "use client"
 
-import { type FormEvent, useCallback, useEffect, useState } from "react"
+import { type FormEvent, Suspense, useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   AlertCircle,
@@ -40,6 +40,20 @@ const PIN_LENGTH = 4
 // ---------------------------------------------------------------------------
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading, setUser } = useAuth()

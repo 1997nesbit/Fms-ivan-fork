@@ -23,6 +23,7 @@ backend/.env
 furniture-management-system/node_modules/
 furniture-management-system/.next/
 furniture-management-system/out/
+furniture-management-system/.env*.local
 
 # OS / editor
 .DS_Store
