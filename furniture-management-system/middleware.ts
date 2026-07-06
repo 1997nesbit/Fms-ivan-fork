@@ -25,6 +25,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Runs on the Node.js runtime instead of Edge. Next.js's Edge runtime has
+  // a known bug where next/server transitively bundles ua-parser-js, which
+  // references __dirname — a Node-only global that doesn't exist on Edge.
+  // Node.js runtime doesn't have that restriction.
+  runtime: "nodejs",
   matcher: [
     // Skip Next.js internals, static assets, and RSC navigation requests
     "/((?!_next/static|_next/image|favicon.ico|icon.*|apple-icon.*).*)",
