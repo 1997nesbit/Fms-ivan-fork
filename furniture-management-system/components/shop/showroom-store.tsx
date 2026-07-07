@@ -25,6 +25,8 @@ export interface NewItemInput {
   category: ShopCategory
   branchId: string
   price: number
+  costPrice?: number | null
+  isSet?: boolean
   dateEntered: string
   photo?: string
 }
@@ -42,6 +44,8 @@ export interface UpdateItemInput {
   category: ShopCategory
   branchId: string
   price: number
+  costPrice?: number | null
+  isSet?: boolean
   photo?: string
 }
 

@@ -3,6 +3,16 @@
 import { useState } from "react"
 import { MapPin, Package, Search, ShoppingBag } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts"
 
 import api from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -243,6 +253,39 @@ export function BranchesView() {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Branch performance — ranked bar chart */}
+      {branchStats.length > 1 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Branch performance</CardTitle>
+            <CardDescription>Ranked by total showroom sales revenue</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={Math.max(180, branchStats.length * 48)}>
+              <BarChart
+                data={[...branchStats].sort((a, b) => b.salesRevenue - a.salesRevenue).map((b, i) => ({ name: b.branch.name, value: b.salesRevenue, colorIdx: i }))}
+                layout="vertical"
+                margin={{ left: 8, right: 16 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                <XAxis
+                  type="number"
+                  tickFormatter={(v) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}k` : String(v)}
+                  tick={{ fontSize: 11 }}
+                />
+                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(v) => formatMoney(Number(v))} />
+                <Bar dataKey="value" name="Revenue" radius={[0, 4, 4, 0]}>
+                  {branchStats.map((_, i) => (
+                    <Cell key={i} fill={BRANCH_COLORS[i % BRANCH_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
 
       {/* Inventory drill-down table */}

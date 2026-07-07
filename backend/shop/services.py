@@ -123,6 +123,20 @@ def validate_and_create_item(user, data, images=None):
     if errors:
         return None, errors
 
+    # Optional cost price
+    cost_price = None
+    raw_cost = str(data.get("cost_price", "")).strip()
+    if raw_cost:
+        try:
+            from decimal import Decimal, InvalidOperation
+            cost_price = Decimal(raw_cost)
+            if cost_price < 0:
+                errors["cost_price"] = ["Cost price cannot be negative."]
+        except InvalidOperation:
+            errors["cost_price"] = ["Enter a valid number."]
+    if errors:
+        return None, errors
+
     effective_type = "SET" if is_set else parsed["type_code"]
     sku = _generate_sku(user.branch, parsed["room_code"], effective_type, "S" if is_set else "X")
 
@@ -134,6 +148,7 @@ def validate_and_create_item(user, data, images=None):
             category=parsed["category"],
             description=parsed["description"],
             price=parsed["price"],
+            cost_price=cost_price,
             quantity=parsed["quantity"],
             is_set=is_set,
             status=ShowroomItem.Status.AVAILABLE,

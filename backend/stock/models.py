@@ -7,6 +7,7 @@ PRODUCTION_STAGE = "production.ProductionStage"
 class InventoryItem(models.Model):
     name = models.CharField(max_length=200)
     unit = models.CharField(max_length=50)
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     current_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     minimum_threshold = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     last_updated = models.DateTimeField(auto_now=True)

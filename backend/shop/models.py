@@ -59,6 +59,7 @@ class ShowroomItem(models.Model):
     )
     description   = models.TextField(blank=True, default="")
     price         = models.DecimalField(max_digits=12, decimal_places=2)
+    cost_price    = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     quantity      = models.PositiveIntegerField(default=1)
     status        = models.CharField(max_length=15, choices=Status.choices, default=Status.AVAILABLE)
     is_set           = models.BooleanField(default=False)

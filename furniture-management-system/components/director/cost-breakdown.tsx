@@ -1,8 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts"
 
 import api from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -126,6 +135,18 @@ export function CostBreakdown() {
     }, {}),
   ).sort((a, b) => b.labour - a.labour)
 
+  // Group by stage name for chart
+  const byStage = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const p of payments) {
+      map[p.stage_name] = (map[p.stage_name] ?? 0) + Number(p.amount)
+    }
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([name, value]) => ({ name, value }))
+  }, [payments])
+
   return (
     <div className="flex flex-col gap-6">
       {/* KPI summary */}
@@ -138,6 +159,31 @@ export function CostBreakdown() {
         />
         <SummaryStat label="Already paid" value={formatMoney(paidLabour)} />
       </div>
+
+      {/* Cost per stage — bar chart */}
+      {byStage.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Labour cost by stage type</CardTitle>
+            <CardDescription>Top 10 stage names by total payout (all time)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={byStage} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                <XAxis
+                  type="number"
+                  tickFormatter={(v) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}k` : String(v)}
+                  tick={{ fontSize: 11 }}
+                />
+                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v) => formatMoney(Number(v))} />
+                <Bar dataKey="value" name="Labour cost" fill="#4F7BEF" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Per-payment table */}
       <Card>

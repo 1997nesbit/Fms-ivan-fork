@@ -57,6 +57,7 @@ def _item_payload(item, request=None):
         "category":      item.category.name if item.category_id else "",
         "description":   item.description,
         "price":       str(item.price),
+        "cost_price":  str(item.cost_price) if item.cost_price is not None else None,
         "quantity":    item.quantity,
         "status":      item.status,
         "is_set":          item.is_set,

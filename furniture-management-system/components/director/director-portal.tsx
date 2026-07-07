@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table"
 import { LowStockBanner } from "@/components/stock-keeper/issue-materials-screen"
 import { CostBreakdown } from "@/components/director/cost-breakdown"
+import { InvoiceScreen } from "@/components/director/invoice-screen"
 import { PayrollView } from "@/components/director/payroll-view"
 import { WeeklyReportView } from "@/components/director/weekly-report-view"
 import { FundsApproval } from "@/components/director/funds-approval"
@@ -511,7 +512,7 @@ function ApprovalQueue() {
 // Portal
 // ---------------------------------------------------------------------------
 
-type DirectorTab = "queue" | "costs" | "payroll" | "report" | "funds" | "revenue"
+type DirectorTab = "queue" | "costs" | "payroll" | "report" | "funds" | "revenue" | "invoices"
 
 export function DirectorPortal() {
   const [tab, setTab] = useState<DirectorTab>("queue")
@@ -575,6 +576,7 @@ export function DirectorPortal() {
           <TabsTrigger value="report">Weekly report</TabsTrigger>
           <TabsTrigger value="funds">Funds</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
+          <TabsTrigger value="invoices">Invoices</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -584,6 +586,7 @@ export function DirectorPortal() {
       {tab === "report" && <WeeklyReportView week={week} onWeekChange={setWeek} />}
       {tab === "funds" && <FundsApproval />}
       {tab === "revenue" && <RevenueView />}
+      {tab === "invoices" && <InvoiceScreen />}
     </div>
   )
 }

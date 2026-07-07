@@ -28,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 
 interface PhotoDraft {
   id: string
@@ -51,6 +53,8 @@ export function EnterStockScreen() {
   const [category, setCategory] = useState<ShopCategory>(shopCategories[0])
   const [branchId, setBranchId] = useState(activeBranchId)
   const [price, setPrice] = useState("")
+  const [costPrice, setCostPrice] = useState("")
+  const [isSet, setIsSet] = useState(false)
   const [quantity, setQuantity] = useState("1")
   const [dateEntered, setDateEntered] = useState(today())
   const [photo, setPhoto] = useState<PhotoDraft | null>(null)
@@ -90,11 +94,15 @@ export function EnterStockScreen() {
   const canSubmit =
     name.trim().length > 0 && Number.parseFloat(price) > 0 && qty >= 1
 
+  const parsedCost = costPrice.trim() ? Number.parseFloat(costPrice) : null
+
   function reset() {
     setName("")
     setCategory(shopCategories[0])
     setBranchId(activeBranchId)
     setPrice("")
+    setCostPrice("")
+    setIsSet(false)
     setQuantity("1")
     setDateEntered(today())
     setPhoto(null)
@@ -111,6 +119,8 @@ export function EnterStockScreen() {
         category,
         branchId,
         price: Number.parseFloat(price) || 0,
+        costPrice: parsedCost,
+        isSet,
         dateEntered,
         photo: photo?.url || undefined,
       })
@@ -215,7 +225,7 @@ export function EnterStockScreen() {
             </Field>
             <Field orientation="responsive">
               <Field>
-                <FieldLabel htmlFor="item-price">Price per unit</FieldLabel>
+                <FieldLabel htmlFor="item-price">Retail price per unit</FieldLabel>
                 <Input
                   id="item-price"
                   type="number"
@@ -224,6 +234,18 @@ export function EnterStockScreen() {
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                   placeholder="0.00"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="item-cost">Cost price (optional)</FieldLabel>
+                <Input
+                  id="item-cost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(e.target.value)}
+                  placeholder="What we paid"
                 />
               </Field>
               <Field>
@@ -248,6 +270,22 @@ export function EnterStockScreen() {
                 />
               </Field>
             </Field>
+
+            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="item-is-set" className="text-sm font-medium">
+                  Furniture set
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  Mark as a set of multiple pieces sold together
+                </span>
+              </div>
+              <Switch
+                id="item-is-set"
+                checked={isSet}
+                onCheckedChange={setIsSet}
+              />
+            </div>
           </CardContent>
         </Card>
 

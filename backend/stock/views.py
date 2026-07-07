@@ -27,6 +27,7 @@ def _item_payload(item):
         "id": item.id,
         "name": item.name,
         "unit": item.unit,
+        "unit_cost": str(item.unit_cost) if item.unit_cost is not None else None,
         "current_quantity": str(item.current_quantity),
         "minimum_threshold": str(item.minimum_threshold),
         "is_low_stock": item.is_low_stock,
@@ -194,11 +195,21 @@ class InventoryItemListCreateView(APIView):
         except InvalidOperation:
             errors["minimum_threshold"] = [_VALID_NUMBER]
 
+        unit_cost = None
+        raw_cost = str(request.data.get("unit_cost", "")).strip()
+        if raw_cost:
+            try:
+                unit_cost = Decimal(raw_cost)
+                if unit_cost < 0:
+                    errors["unit_cost"] = [_NOT_NEGATIVE]
+            except InvalidOperation:
+                errors["unit_cost"] = [_VALID_NUMBER]
+
         if errors:
             return Response({"errors": errors}, status=400)
 
         item = InventoryItem.objects.create(
-            name=name, unit=unit,
+            name=name, unit=unit, unit_cost=unit_cost,
             current_quantity=qty, minimum_threshold=threshold,
         )
         log_inventory_event(
@@ -256,6 +267,21 @@ class InventoryItemDetailView(APIView):
                     update_fields.append(field)
                 except InvalidOperation:
                     errors[field] = ["Enter a valid non-negative number."]
+
+        if "unit_cost" in request.data:
+            raw = str(request.data["unit_cost"]).strip()
+            if raw == "" or raw.lower() == "null":
+                item.unit_cost = None
+                update_fields.append("unit_cost")
+            else:
+                try:
+                    val = Decimal(raw)
+                    if val < 0:
+                        raise InvalidOperation
+                    item.unit_cost = val
+                    update_fields.append("unit_cost")
+                except InvalidOperation:
+                    errors["unit_cost"] = ["Enter a valid non-negative number."]
 
         if errors:
             return Response({"errors": errors}, status=400)

@@ -164,6 +164,8 @@ export interface ShopItem {
   category: ShopCategory
   branchId: string
   price: number
+  costPrice?: number | null
+  isSet?: boolean
   status: ShopItemStatus
   dateEntered: string // ISO date
   photo?: string
