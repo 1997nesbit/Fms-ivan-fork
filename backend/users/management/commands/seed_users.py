@@ -13,8 +13,8 @@ from branches.models import Branch
 from users.models import User
 
 BRANCHES = [
-    {"name": "Main Branch", "location": "Dar es Salaam – Kariakoo"},
-    {"name": "City Branch", "location": "Dar es Salaam – Mikocheni"},
+    {"name": "Main Branch", "code": "A", "location": "Dar es Salaam – Kariakoo"},
+    {"name": "City Branch", "code": "B", "location": "Dar es Salaam – Mikocheni"},
 ]
 
 # (username, first, last, role, branch_idx, phone, pin)
@@ -60,7 +60,7 @@ class Command(BaseCommand):
         for data in BRANCHES:
             branch, created = Branch.objects.get_or_create(
                 name=data["name"],
-                defaults={"location": data["location"]},
+                defaults={"location": data["location"], "code": data["code"]},
             )
             branches.append(branch)
             tag = "created" if created else "exists "
