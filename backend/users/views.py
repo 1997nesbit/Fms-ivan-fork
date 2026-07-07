@@ -53,23 +53,35 @@ def _build_token_pair(user, session_id: str):
 
 
 def _set_auth_cookies(response, access_token: str, refresh_token: str):
-    """Attach both tokens as HttpOnly cookies to the response."""
+    """Attach both tokens as HttpOnly cookies to the response.
+
+    In production the frontend and backend live on different Railway
+    subdomains, which makes every API call cross-site. SameSite=Lax blocks
+    cookies on cross-site fetch/XHR (it only allows them on top-level
+    navigation), so the browser would silently drop the auth cookies on
+    every request after login. SameSite=None is required for cross-site
+    cookies, and browsers require Secure whenever SameSite=None is used.
+    """
     secure = not settings.DEBUG
+    samesite = "None" if secure else "Lax"
     response.set_cookie(
         ACCESS_COOKIE, access_token,
-        httponly=True, secure=secure, samesite="Lax",
+        httponly=True, secure=secure, samesite=samesite,
         max_age=ACCESS_MAX_AGE,
     )
     response.set_cookie(
         REFRESH_COOKIE, refresh_token,
-        httponly=True, secure=secure, samesite="Lax",
+        httponly=True, secure=secure, samesite=samesite,
         max_age=REFRESH_MAX_AGE,
     )
 
 
 def _clear_auth_cookies(response):
-    response.delete_cookie(ACCESS_COOKIE)
-    response.delete_cookie(REFRESH_COOKIE)
+    # Browsers only honour a cookie deletion if SameSite matches how the
+    # cookie was originally set — must mirror _set_auth_cookies exactly.
+    samesite = "None" if not settings.DEBUG else "Lax"
+    response.delete_cookie(ACCESS_COOKIE, samesite=samesite)
+    response.delete_cookie(REFRESH_COOKIE, samesite=samesite)
 
 
 def _user_payload(user):
