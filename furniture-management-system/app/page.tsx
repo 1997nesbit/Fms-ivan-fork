@@ -11,8 +11,11 @@ export default function Page() {
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading && user) {
+    if (loading) return
+    if (user) {
       router.replace(ROLE_PORTAL[user.role])
+    } else {
+      router.replace("/login")
     }
   }, [user, loading, router])
 

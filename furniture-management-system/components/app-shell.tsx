@@ -11,6 +11,7 @@ import { cn, toArray } from "@/lib/utils"
 import { useAuth } from "@/app/providers"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { ModeToggle } from "@/components/mode-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,6 +78,8 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
+          <div className="flex items-center gap-2">
+          <ModeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -114,6 +117,7 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
 
         <nav className="border-t border-border/60 bg-card">

@@ -4,8 +4,9 @@ import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ShowroomInventoryScreen } from "@/components/shop/showroom-inventory-screen"
 import { CatalogueScreen } from "@/components/shop/catalogue-screen"
+import { OtherBranchesScreen } from "@/components/shop/other-branches-screen"
 
-type ShopTab = "inventory" | "catalogue"
+type ShopTab = "inventory" | "other" | "catalogue"
 
 export function ShopFrontDeskPortal() {
   const [tab, setTab] = useState<ShopTab>("inventory")
@@ -19,11 +20,13 @@ export function ShopFrontDeskPortal() {
       >
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="inventory">Showroom Stock</TabsTrigger>
+          <TabsTrigger value="other">Other Branches</TabsTrigger>
           <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {tab === "inventory" && <ShowroomInventoryScreen />}
+      {tab === "other" && <OtherBranchesScreen />}
       {tab === "catalogue" && <CatalogueScreen />}
     </div>
   )

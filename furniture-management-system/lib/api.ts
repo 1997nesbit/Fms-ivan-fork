@@ -1,10 +1,14 @@
 import axios from "axios"
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api"
+// Relative path — the browser always calls this app's own origin, which
+// proxies through to the backend server-side (see next.config.mjs
+// rewrites). Keeps auth cookies first-party instead of third-party.
+const BASE_URL = "/api"
 
 const api = axios.create({
   baseURL: BASE_URL,
   withCredentials: true, // browser auto-sends access_token + refresh_token cookies
+  timeout: 10_000,
 })
 
 // On 401: call /auth/refresh/ to rotate tokens, then retry the original request once.
