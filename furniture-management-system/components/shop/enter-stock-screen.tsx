@@ -67,7 +67,7 @@ export function EnterStockScreen() {
 
   // Preview the ID the store will mint for the chosen branch.
   const previewItemId = useMemo(() => {
-    const code = getBranchById(branchId)?.code ?? "X"
+    const code = branches.find((b) => b.id === branchId)?.code ?? "X"
     const prefix = `ITEM-${code}-`
     const maxSeq = items
       .filter((i) => i.id.startsWith(prefix))
@@ -122,7 +122,7 @@ export function EnterStockScreen() {
       {
         description: `${name.trim()} — ${ids[0]}${
           qty > 1 ? ` … ${ids[ids.length - 1]}` : ""
-        } (${getBranchById(branchId)?.name}).`,
+        } (${branches.find((b) => b.id === branchId)?.name}).`,
       }
     )
     reset()

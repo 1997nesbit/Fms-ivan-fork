@@ -3,6 +3,19 @@
 import { useState } from "react"
 import { TrendingUp, ShoppingBag, Hammer, Search } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts"
 
 import api from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -24,6 +37,17 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+
+const PIE_COLORS = [
+  "#4F7BEF",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#EC4899",
+  "#06B6D4",
+  "#84CC16",
+]
 
 // ---------------------------------------------------------------------------
 // Types
@@ -115,58 +139,6 @@ function KpiCard({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Revenue summary table (replaces pie/bar charts — no recharts installed)
-// ---------------------------------------------------------------------------
-
-function SummaryTable({
-  title,
-  description,
-  rows,
-}: {
-  title: string
-  description: string
-  rows: { label: string; value: number }[]
-}) {
-  const total = rows.reduce((s, r) => s + r.value, 0)
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Label</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Share</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.label}>
-                <TableCell>{r.label}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatMoney(r.value)}</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {total > 0 ? `${((r.value / total) * 100).toFixed(0)}%` : "—"}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-          <TableFooter>
-            <TableRow>
-              <TableCell>Total</TableCell>
-              <TableCell className="text-right font-bold tabular-nums">{formatMoney(total)}</TableCell>
-              <TableCell className="text-right">100%</TableCell>
-            </TableRow>
-          </TableFooter>
-        </Table>
-      </CardContent>
-    </Card>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -225,14 +197,37 @@ export function RevenueView() {
   const showroomRevenue = sales.reduce((s, sale) => s + Number(sale.sale_price), 0)
   const totalRevenue = workshopRevenue + showroomRevenue
 
-  // Revenue by branch (from sales)
+  // Revenue by branch (from sales) — used in chart + table
   const showroomByBranch = Object.entries(
     sales.reduce<Record<string, number>>((acc, s) => {
       const key = s.branch_name || `Branch ${s.branch_id}`
       acc[key] = (acc[key] ?? 0) + Number(s.sale_price)
       return acc
     }, {}),
-  ).map(([label, value]) => ({ label, value }))
+  ).map(([name, value]) => ({ name, value }))
+
+  // Workshop orders by month (BarChart)
+  const workshopByMonth = Object.entries(
+    dispatchedOrders.reduce<Record<string, number>>((acc, o) => {
+      const month = new Date(o.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        year: "2-digit",
+      })
+      acc[month] = (acc[month] ?? 0) + Number(o.confirmed_price ?? o.quoted_price ?? 0)
+      return acc
+    }, {}),
+  )
+    .sort((a, b) => {
+      const parse = (s: string) => new Date(`1 ${s}`)
+      return parse(a[0]).getTime() - parse(b[0]).getTime()
+    })
+    .map(([name, value]) => ({ name, value }))
+
+  // Workshop vs Showroom split (PieChart)
+  const revenueSplit = [
+    { name: "Workshop", value: workshopRevenue },
+    { name: "Showroom", value: showroomRevenue },
+  ].filter((d) => d.value > 0)
 
   const workshopQuery = workshopSearch.trim().toLowerCase()
   const filteredOrders = workshopQuery
@@ -314,46 +309,94 @@ export function RevenueView() {
       {/* Overview tab */}
       {tab === "overview" && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* Workshop revenue summary */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Workshop revenue</CardTitle>
-              <CardDescription>Revenue from dispatched orders</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 pt-2">
-              <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
-                <span className="text-sm text-muted-foreground">Dispatched orders</span>
-                <span className="font-medium tabular-nums">{dispatchedOrders.length}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
-                <span className="text-sm text-muted-foreground">Total revenue</span>
-                <span className="text-lg font-semibold tabular-nums">{formatMoney(workshopRevenue)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Showroom revenue by branch */}
-          {showroomByBranch.length > 0 ? (
-            <SummaryTable
-              title="Showroom revenue by branch"
-              description="Revenue share per showroom location"
-              rows={showroomByBranch}
-            />
-          ) : (
+          {/* Workshop vs Showroom split */}
+          {revenueSplit.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Showroom revenue</CardTitle>
-                <CardDescription>Sales transactions</CardDescription>
+                <CardTitle className="text-base">Revenue split</CardTitle>
+                <CardDescription>Workshop orders vs showroom sales</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col gap-2 pt-2">
-                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
-                  <span className="text-sm text-muted-foreground">Total transactions</span>
-                  <span className="font-medium tabular-nums">{sales.length}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
-                  <span className="text-sm text-muted-foreground">Total revenue</span>
-                  <span className="text-lg font-semibold tabular-nums">{formatMoney(showroomRevenue)}</span>
-                </div>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie
+                      data={revenueSplit}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {revenueSplit.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => formatMoney(Number(v))} />
+                    <Legend iconType="circle" iconSize={8} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Showroom revenue by branch */}
+          {showroomByBranch.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Showroom revenue by branch</CardTitle>
+                <CardDescription>Sales value per showroom location</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie
+                      data={showroomByBranch}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {showroomByBranch.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => formatMoney(Number(v))} />
+                    <Legend iconType="circle" iconSize={8} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Workshop revenue by month */}
+          {workshopByMonth.length > 0 && (
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Workshop revenue by month</CardTitle>
+                <CardDescription>Dispatched order value over time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={workshopByMonth} margin={{ left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      tickFormatter={(v) =>
+                        v >= 1_000_000
+                          ? `${(v / 1_000_000).toFixed(1)}M`
+                          : v >= 1_000
+                            ? `${(v / 1_000).toFixed(0)}k`
+                            : String(v)
+                      }
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip formatter={(v) => formatMoney(Number(v))} />
+                    <Bar dataKey="value" fill={PIE_COLORS[0]} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           )}
