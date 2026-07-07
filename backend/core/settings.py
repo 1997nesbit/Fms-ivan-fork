@@ -29,8 +29,8 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    *(["cloudinary_storage"] if _USE_CLOUDINARY else []),
     "django.contrib.staticfiles",
+    *(["cloudinary_storage"] if _USE_CLOUDINARY else []),
     *(["cloudinary"] if _USE_CLOUDINARY else []),
     # Third-party
     "rest_framework",
