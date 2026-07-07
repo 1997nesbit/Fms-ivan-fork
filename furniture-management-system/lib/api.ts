@@ -1,6 +1,9 @@
 import axios from "axios"
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api"
+// Relative by default so requests go through the /api rewrite in next.config.mjs
+// (same-origin proxy to the Django backend — see BACKEND_URL there). Set
+// NEXT_PUBLIC_API_URL only if you need the browser to call the backend directly.
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api"
 
 const api = axios.create({
   baseURL: BASE_URL,
