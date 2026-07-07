@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   CheckCircle2,
   Clock,
@@ -10,10 +11,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { cn } from "@/lib/utils"
-import type { Order } from "@/lib/mock-data"
-import { useOrders } from "@/components/front-desk/orders-store"
-import { StatusBadge } from "@/components/front-desk/status-badge"
+import api from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,19 +31,22 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+interface ApiOrder {
+  id: number
+  reference_number: string
+  customer_name: string
+  customer_phone: string
+  item_description: string
+  quoted_price: string | null
+  status: string
+  updated_at: string
+}
+
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 0,
 })
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
-}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
@@ -56,39 +57,64 @@ function formatDateTime(iso: string): string {
   })
 }
 
+function useCollections() {
+  const qc = useQueryClient()
+
+  const { data: ready = [], isLoading: loadingReady } = useQuery<ApiOrder[]>({
+    queryKey: ["orders", "WORKSHOP_COMPLETE"],
+    queryFn: () =>
+      api
+        .get<ApiOrder[]>("/orders/", { params: { status: "WORKSHOP_COMPLETE" } })
+        .then((r) => r.data),
+  })
+
+  const { data: done = [], isLoading: loadingDone } = useQuery<ApiOrder[]>({
+    queryKey: ["orders", "DISPATCHED"],
+    queryFn: () =>
+      api
+        .get<ApiOrder[]>("/orders/", { params: { status: "DISPATCHED" } })
+        .then((r) => r.data),
+  })
+
+  const collectMutation = useMutation({
+    mutationFn: (orderId: number) => api.post(`/orders/${orderId}/collect/`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orders", "WORKSHOP_COMPLETE"] })
+      qc.invalidateQueries({ queryKey: ["orders", "DISPATCHED"] })
+    },
+  })
+
+  return {
+    ready,
+    done,
+    isLoading: loadingReady || loadingDone,
+    collect: collectMutation,
+  }
+}
+
 export function CollectionsScreen() {
-  const { orders, markCollected } = useOrders()
+  const { ready, done, isLoading, collect } = useCollections()
   const [query, setQuery] = useState("")
 
   const q = query.trim().toLowerCase()
-  const match = (o: Order) =>
+  const match = (o: ApiOrder) =>
     !q ||
-    o.id.toLowerCase().includes(q) ||
-    o.customerName.toLowerCase().includes(q) ||
-    o.furnitureType.toLowerCase().includes(q)
+    o.reference_number.toLowerCase().includes(q) ||
+    o.customer_name.toLowerCase().includes(q) ||
+    o.item_description.toLowerCase().includes(q)
 
-  const awaitingReturn = useMemo(
-    () => orders.filter((o) => o.status === "Awaiting Return" && match(o)),
-    [orders, q]
-  )
-  const readyForCollection = useMemo(
-    () => orders.filter((o) => o.status === "Ready for Collection" && match(o)),
-    [orders, q]
-  )
-  const collected = useMemo(
-    () =>
-      orders
-        .filter((o) => o.status === "Collected" && match(o))
-        .sort((a, b) =>
-          (b.collectedAt ?? "").localeCompare(a.collectedAt ?? "")
-        ),
-    [orders, q]
-  )
+  const readyFiltered = ready.filter(match)
+  const doneFiltered = done
+    .filter(match)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
 
-  function handleCollect(order: Order) {
-    markCollected(order.id)
-    toast.success("Marked as collected", {
-      description: `${order.id} · ${order.customerName} — recorded just now.`,
+  function handleCollect(order: ApiOrder) {
+    collect.mutate(order.id, {
+      onSuccess: () =>
+        toast.success("Marked as collected", {
+          description: `${order.reference_number} · ${order.customer_name} — recorded just now.`,
+        }),
+      onError: () => toast.error("Failed to record collection. Please try again."),
     })
   }
 
@@ -129,9 +155,7 @@ export function CollectionsScreen() {
               <CardDescription>Awaiting return</CardDescription>
               <Truck className="size-4 text-muted-foreground" />
             </div>
-            <CardTitle className="text-2xl tabular-nums">
-              {awaitingReturn.length}
-            </CardTitle>
+            <CardTitle className="text-2xl tabular-nums">0</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -146,7 +170,7 @@ export function CollectionsScreen() {
               <PackageCheck className="size-4 text-muted-foreground" />
             </div>
             <CardTitle className="text-2xl tabular-nums">
-              {readyForCollection.length}
+              {isLoading ? "—" : ready.length}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -162,7 +186,7 @@ export function CollectionsScreen() {
               <CheckCircle2 className="size-4 text-muted-foreground" />
             </div>
             <CardTitle className="text-2xl tabular-nums">
-              {collected.length}
+              {isLoading ? "—" : done.length}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -173,44 +197,17 @@ export function CollectionsScreen() {
         </Card>
       </div>
 
-      {/* Awaiting return from technicians */}
+      {/* Awaiting return from technicians — placeholder until a backend status exists */}
       <section className="flex flex-col gap-3">
         <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Clock className="size-4 text-teal-600" />
           Awaiting return from the workshop
         </h2>
-        {awaitingReturn.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Nothing waiting to come back right now.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {awaitingReturn.map((order) => (
-              <Card key={order.id} className="border-teal-500/30">
-                <CardHeader className="gap-1 pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">
-                      {order.furnitureType}
-                    </CardTitle>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {order.id}
-                    </span>
-                  </div>
-                  <CardDescription>{order.customerName}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2">
-                  <StatusBadge status={order.status} />
-                  <p className="text-xs text-muted-foreground">
-                    The last technician still needs to hand this piece back to
-                    the Front Desk.
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <Card className="border-dashed">
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Nothing waiting to come back right now.
+          </CardContent>
+        </Card>
       </section>
 
       {/* Ready for collection */}
@@ -226,52 +223,52 @@ export function CollectionsScreen() {
                 <TableRow>
                   <TableHead>Order</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Furniture</TableHead>
+                  <TableHead>Item</TableHead>
                   <TableHead className="text-right">Quoted</TableHead>
-                  <TableHead>Returned</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {readyForCollection.length === 0 ? (
+                {readyFiltered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={5}
                       className="py-10 text-center text-muted-foreground"
                     >
                       No orders are ready for collection.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  readyForCollection.map((order) => (
+                  readyFiltered.map((order) => (
                     <TableRow
                       key={order.id}
                       className="bg-green-50/70 hover:bg-green-50 dark:bg-green-950/30"
                     >
                       <TableCell className="font-medium tabular-nums">
-                        {order.id}
+                        {order.reference_number}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-medium">
-                            {order.customerName}
+                            {order.customer_name}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {order.contact}
+                            {order.customer_phone}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>{order.furnitureType}</TableCell>
+                      <TableCell>{order.item_description}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {currency.format(order.quotedPrice)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {order.returnedAt
-                          ? formatDateTime(order.returnedAt)
+                        {order.quoted_price
+                          ? currency.format(Number(order.quoted_price))
                           : "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" onClick={() => handleCollect(order)}>
+                        <Button
+                          size="sm"
+                          disabled={collect.isPending}
+                          onClick={() => handleCollect(order)}
+                        >
                           <CheckCircle2 data-icon="inline-start" />
                           Mark Collected
                         </Button>
@@ -288,7 +285,7 @@ export function CollectionsScreen() {
       {/* Collected history */}
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-muted-foreground">
-          Collected history ({collected.length})
+          Collected history ({doneFiltered.length})
         </h2>
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
@@ -297,12 +294,12 @@ export function CollectionsScreen() {
                 <TableRow>
                   <TableHead>Order</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Furniture</TableHead>
+                  <TableHead>Item</TableHead>
                   <TableHead>Collected</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {collected.length === 0 ? (
+                {doneFiltered.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={4}
@@ -312,24 +309,20 @@ export function CollectionsScreen() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  collected.map((order) => (
+                  doneFiltered.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium tabular-nums">
-                        {order.id}
+                        {order.reference_number}
                       </TableCell>
-                      <TableCell>{order.customerName}</TableCell>
-                      <TableCell>{order.furnitureType}</TableCell>
+                      <TableCell>{order.customer_name}</TableCell>
+                      <TableCell>{order.item_description}</TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {order.collectedAt ? (
-                          <Badge
-                            variant="outline"
-                            className="border-border bg-muted text-muted-foreground"
-                          >
-                            {formatDateTime(order.collectedAt)}
-                          </Badge>
-                        ) : (
-                          formatDate(order.orderDate)
-                        )}
+                        <Badge
+                          variant="outline"
+                          className="border-border bg-muted text-muted-foreground"
+                        >
+                          {formatDateTime(order.updated_at)}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   ))

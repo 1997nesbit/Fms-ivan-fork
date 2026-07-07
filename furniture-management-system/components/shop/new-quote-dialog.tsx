@@ -82,7 +82,9 @@ export function NewQuoteDialog({
     setNotes("")
   }
 
-  function handleSubmit() {
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit() {
     if (!selected) {
       toast.error("Pick a catalogue product for the reference range.")
       return
@@ -96,32 +98,42 @@ export function NewQuoteDialog({
       return
     }
 
-    const created = createQuote({
-      branchId: activeBranch.id,
-      customerName: customerName.trim(),
-      contact: contact.trim(),
-      productName: selected.name,
-      catalogueId: selected.id,
-      category: selected.category as ShopCategory,
-      size: size.trim() || undefined,
-      refMin: selected.minPrice,
-      refMax: selected.maxPrice,
-      quotedPrice: quoted,
-      notes: notes.trim() || undefined,
-    })
+    setSubmitting(true)
+    try {
+      const created = await createQuote({
+        branchId: activeBranch?.id ?? "",
+        customerName: customerName.trim(),
+        contact: contact.trim(),
+        productName: selected.name,
+        catalogueId: selected.id,
+        category: selected.category as ShopCategory,
+        size: size.trim() || undefined,
+        refMin: selected.minPrice,
+        refMax: selected.maxPrice,
+        quotedPrice: quoted,
+        notes: notes.trim() || undefined,
+      })
 
-    if (created.withinRange) {
-      toast.success(`Quote ${created.id} confirmed`, {
-        description: `$${quoted.toLocaleString()} is within the reference range — no approval needed.`,
-      })
-    } else {
-      toast.info(`Quote ${created.id} sent to the Director`, {
-        description: `$${quoted.toLocaleString()} is outside the $${selected.minPrice.toLocaleString()}–$${selected.maxPrice.toLocaleString()} range.`,
-      })
+      if (created.withinRange) {
+        toast.success(`Quote ${created.id} confirmed`, {
+          description: `$${quoted.toLocaleString()} is within the reference range — no approval needed.`,
+        })
+      } else {
+        toast.info(`Quote ${created.id} sent to the Director`, {
+          description: `$${quoted.toLocaleString()} is outside the $${selected.minPrice.toLocaleString()}–$${selected.maxPrice.toLocaleString()} range.`,
+        })
+      }
+      reset()
+      setDialogOpen(false)
+    } catch {
+      toast.error("Failed to save quote. Please try again.")
+    } finally {
+      setSubmitting(false)
     }
-    reset()
-    setDialogOpen(false)
   }
+
+  const label =
+    selected && hasValidPrice && !withinRange ? "Send to Director" : "Create quote"
 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -246,10 +258,8 @@ export function NewQuoteDialog({
           <Button variant="outline" onClick={() => setDialogOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>
-            {selected && hasValidPrice && !withinRange
-              ? "Send to Director"
-              : "Create quote"}
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? "Saving…" : label}
           </Button>
         </DialogFooter>
       </DialogContent>

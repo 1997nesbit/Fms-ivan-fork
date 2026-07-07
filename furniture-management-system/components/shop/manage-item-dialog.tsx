@@ -4,12 +4,12 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import {
-  branches,
   shopCategories,
   type ShopCategory,
   type ShopItem,
 } from "@/lib/mock-data"
 import { useShowroom } from "@/components/shop/showroom-store"
+import { useBranch } from "@/components/shop/branch-store"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -42,11 +42,12 @@ export function ManageItemDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const { addItem, updateItem } = useShowroom()
+  const { branches, activeBranchId } = useBranch()
   const isEdit = Boolean(item)
 
   const [name, setName] = useState("")
   const [category, setCategory] = useState<ShopCategory>(shopCategories[0])
-  const [branchId, setBranchId] = useState(branches[0].id)
+  const [branchId, setBranchId] = useState(activeBranchId)
   const [price, setPrice] = useState("")
 
   const branchItems = Object.fromEntries(
@@ -54,14 +55,13 @@ export function ManageItemDialog({
   )
   const categoryItems = Object.fromEntries(shopCategories.map((c) => [c, c]))
 
-  // Reset the form each time the dialog opens (with or without a unit).
   useEffect(() => {
     if (!open) return
     setName(item?.name ?? "")
     setCategory(item?.category ?? shopCategories[0])
-    setBranchId(item?.branchId ?? branches[0].id)
+    setBranchId(item?.branchId ?? activeBranchId)
     setPrice(item ? String(item.price) : "")
-  }, [open, item])
+  }, [open, item, activeBranchId])
 
   const parsedPrice = Number.parseFloat(price)
   const canSubmit = name.trim().length > 0 && parsedPrice > 0

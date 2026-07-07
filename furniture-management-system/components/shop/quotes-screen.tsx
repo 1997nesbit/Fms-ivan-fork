@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { FileText, Plus } from "lucide-react"
 import { toast } from "sonner"
 
@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils"
 import type { QuoteStatus } from "@/lib/mock-data"
 import { useBranch } from "@/components/shop/branch-store"
 import { useQuotes } from "@/components/shop/quotes-store"
-import { useOrders } from "@/components/front-desk/orders-store"
 import { NewQuoteDialog } from "@/components/shop/new-quote-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,49 +27,40 @@ const STATUS_STYLES: Record<QuoteStatus, string> = {
   Rejected: "bg-destructive/10 text-destructive border-destructive/20",
 }
 
-function addDays(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
-}
 
 export function QuotesScreen() {
   const { activeBranch } = useBranch()
-  const { quotes, markConverted } = useQuotes()
-  const { addOrder } = useOrders()
+  const { quotes, convertQuote } = useQuotes()
+  const [converting, setConverting] = useState<string | null>(null)
 
   const branchQuotes = useMemo(
     () =>
-      quotes
-        .filter((q) => q.branchId === activeBranch.id)
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
-    [quotes, activeBranch.id]
+      activeBranch
+        ? quotes
+            .filter((q) => q.branchId === activeBranch.id)
+            .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+        : [],
+    [quotes, activeBranch]
   )
 
   const pendingCount = branchQuotes.filter(
     (q) => q.status === "Pending Director"
   ).length
 
-  function handleConvert(quoteId: string) {
+  async function handleConvert(quoteId: string) {
     const quote = branchQuotes.find((q) => q.id === quoteId)
     if (!quote) return
-    const order = addOrder({
-      customerName: quote.customerName,
-      contact: quote.contact,
-      furnitureType: quote.productName,
-      size: quote.size ?? "Custom",
-      quotedPrice: quote.quotedPrice,
-      orderDate: new Date().toISOString().slice(0, 10),
-      expectedDelivery: addDays(28),
-      requiresApproval: false,
-      referenceImages: [],
-      originatingBranch: `Branch ${activeBranch.code} — ${activeBranch.name}`,
-      quoteId: quote.id,
-    })
-    markConverted(quote.id, order.id)
-    toast.success(`Workshop order ${order.id} created`, {
-      description: `${quote.productName} for ${quote.customerName} is now in production.`,
-    })
+    setConverting(quoteId)
+    try {
+      await convertQuote(quote.id)
+      toast.success("Workshop order created", {
+        description: `${quote.productName} for ${quote.customerName} is now in production.`,
+      })
+    } catch {
+      toast.error("Failed to convert quote. Please try again.")
+    } finally {
+      setConverting(null)
+    }
   }
 
   return (
@@ -179,9 +169,10 @@ export function QuotesScreen() {
                   <Button
                     size="sm"
                     className="w-full"
+                    disabled={converting === q.id}
                     onClick={() => handleConvert(q.id)}
                   >
-                    Convert to workshop order
+                    {converting === q.id ? "Creating order…" : "Convert to workshop order"}
                   </Button>
                 )}
                 {q.convertedOrderId && (

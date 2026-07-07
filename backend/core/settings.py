@@ -1,12 +1,24 @@
 from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
+
+# Railway terminates TLS at its edge proxy and forwards plain HTTP with this
+# header set, so Django needs to trust it to know the original request was
+# HTTPS (affects secure-cookie and CSRF checks).
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
+
+# Cloudinary is only needed when media is actually configured to use it
+# (production). Kept out of local dev so nobody needs Cloudinary creds
+# just to run the server against local disk storage.
+_USE_CLOUDINARY = bool(config("CLOUDINARY_URL", default=""))
 
 # Application definition
 INSTALLED_APPS = [
@@ -17,7 +29,9 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    *(["cloudinary_storage"] if _USE_CLOUDINARY else []),
     "django.contrib.staticfiles",
+    *(["cloudinary"] if _USE_CLOUDINARY else []),
     # Third-party
     "rest_framework",
     "corsheaders",
@@ -36,6 +50,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",  # must be before CommonMiddleware
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # serves static/ without a separate host
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -65,16 +80,23 @@ WSGI_APPLICATION = "core.wsgi.application"
 ASGI_APPLICATION = "core.asgi.application"
 
 # Database
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME", default="fms_db"),
-        "USER": config("DB_USER", default="fms_user"),
-        "PASSWORD": config("DB_PASSWORD", default=""),
-        "HOST": config("DB_HOST", default="localhost"),
-        "PORT": config("DB_PORT", default="5432"),
+# Railway's Postgres addon injects a single DATABASE_URL; local dev keeps
+# using the discrete DB_* vars from .env.
+if config("DATABASE_URL", default=""):
+    DATABASES = {
+        "default": dj_database_url.config(conn_max_age=600, ssl_require=not DEBUG)
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": config("DB_NAME", default="fms_db"),
+            "USER": config("DB_USER", default="fms_user"),
+            "PASSWORD": config("DB_PASSWORD", default=""),
+            "HOST": config("DB_HOST", default="localhost"),
+            "PORT": config("DB_PORT", default="5432"),
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -90,8 +112,25 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+}
+
+# Uploaded photos (order reference images, showroom item images) go to
+# Cloudinary in production so they survive redeploys — Railway's filesystem
+# is wiped on every deploy. Falls back to local disk when CLOUDINARY_URL
+# isn't set (e.g. local development).
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+if _USE_CLOUDINARY:
+    STORAGES["default"]["BACKEND"] = "cloudinary_storage.storage.MediaCloudinaryStorage"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "users.User"

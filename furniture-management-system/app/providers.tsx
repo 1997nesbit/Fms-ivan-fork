@@ -10,7 +10,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { logout as apiLogout, getMe, type AuthUser } from "@/lib/auth"
-import { ThemeProvider } from "@/components/theme-provider"
+import { ThemeProvider } from "next-themes"
 
 // ---------------------------------------------------------------------------
 // Auth context

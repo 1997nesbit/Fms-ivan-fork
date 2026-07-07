@@ -1,8 +1,43 @@
 from django.urls import path
 
-from .views import SaleListCreateView, ShowroomItemListCreateView
+from .views import (
+    CatalogueDetailView,
+    CatalogueListCreateView,
+    CategoryDetailView,
+    CategoryListCreateView,
+    DiscontinueItemView,
+    ItemTypeDetailView,
+    ItemTypeListCreateView,
+    QuoteApproveView,
+    QuoteConvertView,
+    QuoteListCreateView,
+    QuoteRejectView,
+    RestockItemView,
+    RoomDetailView,
+    RoomListCreateView,
+    SaleListCreateView,
+    SetImageCoverView,
+    ShowroomItemListCreateView,
+    UpdateItemPriceView,
+)
 
 urlpatterns = [
-    path("items/", ShowroomItemListCreateView.as_view()),
-    path("sales/", SaleListCreateView.as_view()),
+    path("categories/",                                       CategoryListCreateView.as_view()),
+    path("categories/<int:pk>/",                              CategoryDetailView.as_view()),
+    path("rooms/",                                            RoomListCreateView.as_view()),
+    path("rooms/<int:pk>/",                                   RoomDetailView.as_view()),
+    path("item-types/",                                       ItemTypeListCreateView.as_view()),
+    path("item-types/<int:pk>/",                              ItemTypeDetailView.as_view()),
+    path("items/",                                            ShowroomItemListCreateView.as_view()),
+    path("items/<int:pk>/restock/",                           RestockItemView.as_view()),
+    path("items/<int:pk>/price/",                             UpdateItemPriceView.as_view()),
+    path("items/<int:pk>/discontinue/",                       DiscontinueItemView.as_view()),
+    path("items/<int:pk>/images/<int:img_pk>/set-cover/",     SetImageCoverView.as_view()),
+    path("sales/",                                            SaleListCreateView.as_view()),
+    path("catalogue/",                                        CatalogueListCreateView.as_view()),
+    path("catalogue/<int:pk>/",                               CatalogueDetailView.as_view()),
+    path("quotes/",                                           QuoteListCreateView.as_view()),
+    path("quotes/<int:pk>/approve/",                          QuoteApproveView.as_view()),
+    path("quotes/<int:pk>/reject/",                           QuoteRejectView.as_view()),
+    path("quotes/<int:pk>/convert/",                          QuoteConvertView.as_view()),
 ]

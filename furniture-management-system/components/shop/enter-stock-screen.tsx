@@ -6,12 +6,11 @@ import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import {
-  branches,
-  getBranchById,
   shopCategories,
   type ShopCategory,
 } from "@/lib/mock-data"
 import { useShowroom } from "@/components/shop/showroom-store"
+import { useBranch } from "@/components/shop/branch-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -45,11 +44,12 @@ const uid = (prefix: string) => `${prefix}-${counter++}`
 
 export function EnterStockScreen() {
   const { items, addItem } = useShowroom()
+  const { branches, activeBranchId } = useBranch()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [name, setName] = useState("")
   const [category, setCategory] = useState<ShopCategory>(shopCategories[0])
-  const [branchId, setBranchId] = useState(branches[0].id)
+  const [branchId, setBranchId] = useState(activeBranchId)
   const [price, setPrice] = useState("")
   const [quantity, setQuantity] = useState("1")
   const [dateEntered, setDateEntered] = useState(today())
@@ -93,7 +93,7 @@ export function EnterStockScreen() {
   function reset() {
     setName("")
     setCategory(shopCategories[0])
-    setBranchId(branches[0].id)
+    setBranchId(activeBranchId)
     setPrice("")
     setQuantity("1")
     setDateEntered(today())

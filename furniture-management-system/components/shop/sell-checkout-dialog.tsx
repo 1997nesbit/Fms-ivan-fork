@@ -68,7 +68,7 @@ export function SellCheckoutDialog({
     }
     sellItems({
       itemIds: items.map((i) => i.id),
-      branchId: activeBranch.id,
+      branchId: activeBranch?.id ?? "",
       customerName: customerName.trim(),
       contact: contact.trim(),
       paymentMethod: payment,

@@ -5,6 +5,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api"
 const api = axios.create({
   baseURL: BASE_URL,
   withCredentials: true, // browser auto-sends access_token + refresh_token cookies
+  timeout: 10_000,
 })
 
 // On 401: call /auth/refresh/ to rotate tokens, then retry the original request once.
