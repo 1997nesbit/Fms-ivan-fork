@@ -40,7 +40,7 @@ export const roles: RoleConfig[] = [
     nav: [
       { label: "Overview", available: true, href: "/front-desk" },
       { label: "Shop", available: true, href: "/front-desk/shop" },
-      { label: "Quotes", available: true, href: "/front-desk/quotes" },
+      { label: "Quotes", available: false },
       { label: "Collections", available: true, href: "/front-desk/collections" },
       { label: "Messaging", available: true, href: "/front-desk/messaging" },
     ],
