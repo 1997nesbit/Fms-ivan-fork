@@ -3,8 +3,10 @@
 import { useState } from "react"
 import {
   Bell,
+  Check,
   CheckCircle2,
   ChevronRight,
+  Copy,
   Inbox,
   Megaphone,
   MessageSquare,
@@ -25,6 +27,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -454,8 +457,66 @@ const TRIGGER_ORDER: MessageTrigger[] = [
   "payment_received",
 ]
 
+const ENV_VARS: { name: string; description: React.ReactNode }[] = [
+  {
+    name: "SMS_PROVIDER_BASE_URL",
+    description: (
+      <>
+        Your provider&apos;s REST send endpoint (e.g.{" "}
+        <code className="break-all">https://api.yoursms.com/v1/messages</code>)
+      </>
+    ),
+  },
+  {
+    name: "SMS_API_KEY",
+    description: "API key or Bearer token issued by your provider",
+  },
+  {
+    name: "SMS_SENDER_ID",
+    description: (
+      <>
+        Sender name or number shown to recipients (default: <code>FurnitureCo</code>)
+      </>
+    ),
+  },
+]
+
+function EnvVarRow({ name, description }: { name: string; description: React.ReactNode }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(name)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error("Couldn't copy to clipboard")
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:gap-4">
+      <button
+        type="button"
+        onClick={copy}
+        className="flex w-fit shrink-0 items-center gap-1.5 rounded-md bg-muted px-2 py-1 font-mono text-xs transition-colors hover:bg-muted/70 sm:min-w-[220px]"
+      >
+        {name}
+        {copied ? (
+          <Check className="size-3 text-primary" />
+        ) : (
+          <Copy className="size-3 text-muted-foreground" />
+        )}
+      </button>
+      <span className="min-w-0 break-words text-sm text-muted-foreground [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:text-xs [&_code]:break-all">
+        {description}
+      </span>
+    </div>
+  )
+}
+
 function MessagingSettings() {
-  const { templates, updateTemplate, config, updateConfig } = useSms()
+  const { templates, updateTemplate, config, updateConfig, providerConfigured } = useSms()
 
   return (
     <div className="flex flex-col gap-6">
@@ -465,39 +526,28 @@ function MessagingSettings() {
             <Settings2 className="size-4 text-primary" />
             SMS provider
           </CardTitle>
+          <CardAction>
+            <Badge
+              className={cn(
+                "text-xs",
+                providerConfigured
+                  ? "border-transparent bg-primary text-primary-foreground"
+                  : "border-border bg-muted text-muted-foreground"
+              )}
+            >
+              {providerConfigured ? "Connected" : "Not connected"}
+            </Badge>
+          </CardAction>
           <CardDescription>
             Connection is configured via Vercel environment variables.
             Set these in your project settings and they will be picked up automatically.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
-          <div className="grid gap-3 rounded-lg border border-border bg-muted/40 p-4 text-sm">
-            <div className="flex items-start gap-3">
-              <code className="min-w-[220px] rounded bg-background px-2 py-1 font-mono text-xs">
-                SMS_PROVIDER_BASE_URL
-              </code>
-              <span className="text-muted-foreground">
-                Your provider&apos;s REST send endpoint (e.g.{" "}
-                <code className="text-xs">https://api.yoursms.com/v1/messages</code>)
-              </span>
-            </div>
-            <div className="flex items-start gap-3">
-              <code className="min-w-[220px] rounded bg-background px-2 py-1 font-mono text-xs">
-                SMS_API_KEY
-              </code>
-              <span className="text-muted-foreground">
-                API key or Bearer token issued by your provider
-              </span>
-            </div>
-            <div className="flex items-start gap-3">
-              <code className="min-w-[220px] rounded bg-background px-2 py-1 font-mono text-xs">
-                SMS_SENDER_ID
-              </code>
-              <span className="text-muted-foreground">
-                Sender name or number shown to recipients (default:{" "}
-                <code className="text-xs">FurnitureCo</code>)
-              </span>
-            </div>
+          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border text-sm">
+            {ENV_VARS.map((v) => (
+              <EnvVarRow key={v.name} name={v.name} description={v.description} />
+            ))}
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -654,7 +704,7 @@ export function MessagingPortal() {
       )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-4">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="log" className="gap-1.5">
             <Inbox className="size-3.5" />
             Message log

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { BarChart3, Boxes, PackageCheck, Tag, Wallet } from "lucide-react"
+import { BarChart3, Boxes, Download, Loader2, PackageCheck, Tag, Wallet } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import {
   PieChart,
@@ -18,7 +18,9 @@ import {
 } from "recharts"
 
 import api from "@/lib/api"
+import { generateShopSalesPDF } from "@/lib/generators/shop-sales"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -102,6 +104,38 @@ export function ShopReportsScreen() {
   const [branchFilter, setBranchFilter] = useState<number | "all">("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      const dateRange = [
+        dateFrom && `From ${dateFrom}`,
+        dateTo && `To ${dateTo}`,
+      ].filter(Boolean).join(" ") || "All time"
+      generateShopSalesPDF({
+        scopeLabel,
+        dateRange,
+        totalSalesValue,
+        unitsSold,
+        unsoldValueRetail,
+        unsoldValueCost,
+        hasCostData,
+        sales: filteredSales.map((s) => ({
+          reference: s.reference,
+          item_name: s.item_name,
+          item_sku: s.item_sku,
+          branch_name: s.branch_name,
+          sold_by_name: s.sold_by_name,
+          sold_at: s.sold_at,
+          sale_price: Number(s.sale_price),
+        })),
+        perBranch,
+      })
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const { data: branches = [] } = useQuery({
     queryKey: ["branches"],
@@ -195,7 +229,14 @@ export function ShopReportsScreen() {
   const hasCostData = unsoldItems.some((i) => i.cost_price !== null)
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading} className="gap-1.5">
+          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          {downloading ? "Generating…" : "Download PDF"}
+        </Button>
+      </div>
+      <div className="flex flex-col gap-6">
 
       {/* Header + Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -398,6 +439,7 @@ export function ShopReportsScreen() {
           </CardContent>
         </Card>
       </section>
+      </div>
     </div>
   )
 }

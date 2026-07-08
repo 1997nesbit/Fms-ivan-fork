@@ -1,10 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import {
   CheckCircle2,
   Clock,
   Hammer,
-  Lock,
   PackageCheck,
   PackageMinus,
   PackagePlus,
@@ -121,19 +121,15 @@ const REQUEST_STATUS: Record<
   },
 }
 
-// Active first, then Pending.
-const STATUS_ORDER: Record<QueueStage["status"], number> = {
-  ACTIVE: 0,
-  PENDING: 1,
-  DONE: 2,
-}
-
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
+const ACTIVE_COLLAPSE_AT = 3
+
 export function TechTasksScreen() {
   const queryClient = useQueryClient()
+  const [showAllActive, setShowAllActive] = useState(false)
 
   const { data: stages = [], isLoading: stagesLoading } = useQuery({
     queryKey: ["my-queue"],
@@ -176,12 +172,13 @@ export function TechTasksScreen() {
     onError: () => toast.error("Failed to mark stage complete."),
   })
 
-  // Non-done stages, sorted Active → Pending.
-  const assigned = toArray<QueueStage>(stages)
-    .filter((s) => s.status !== "DONE")
-    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
-
+  const assigned = toArray<QueueStage>(stages).filter((s) => s.status !== "DONE")
   const hasTasks = assigned.length > 0
+  const activeStages = assigned.filter((s) => s.status === "ACTIVE")
+  const pendingGroups = groupPendingByOrder(assigned.filter((s) => s.status === "PENDING"))
+
+  const visibleActiveStages = showAllActive ? activeStages : activeStages.slice(0, ACTIVE_COLLAPSE_AT)
+  const hiddenActiveCount = activeStages.length - visibleActiveStages.length
 
   if (stagesLoading) {
     return (
@@ -209,7 +206,13 @@ export function TechTasksScreen() {
 
   return (
     <div className="flex flex-col gap-3">
-      {assigned.map((stage) => (
+      {activeStages.length > 0 && (
+        <div className="flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
+          <Hammer className="size-4" />
+          In progress ({activeStages.length})
+        </div>
+      )}
+      {visibleActiveStages.map((stage) => (
         <TaskCard
           key={stage.id}
           stage={stage}
@@ -218,14 +221,114 @@ export function TechTasksScreen() {
         />
       ))}
 
+      {hiddenActiveCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAllActive(true)}
+          className="rounded-lg border border-border py-2.5 text-center text-sm font-medium text-primary hover:bg-muted/50"
+        >
+          Show {hiddenActiveCount} more active task{hiddenActiveCount === 1 ? "" : "s"}
+        </button>
+      )}
+
       {!hasTasks && (
         <p className="text-sm text-muted-foreground">
           No active stages right now — new work will appear here.
         </p>
       )}
 
+      {pendingGroups.length > 0 && <UpNextPanel groups={pendingGroups} />}
+
       {myRequests.length > 0 && <MyRequestsPanel requests={myRequests} />}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Up next (queued, non-actionable stages) — grouped by order and collapsed
+// past a handful of orders so a big backlog doesn't turn this into a wall
+// of identical cards. Unlike ACTIVE stages, these can't be worked yet
+// (they're waiting on an earlier stage in the same order), so they get a
+// compact read-only row instead of the full TaskCard treatment.
+// ---------------------------------------------------------------------------
+
+interface PendingGroup {
+  orderRef: string
+  itemDescription: string
+  customerName: string
+  stages: QueueStage[]
+}
+
+function groupPendingByOrder(stages: QueueStage[]): PendingGroup[] {
+  const groups = new Map<string, PendingGroup>()
+  for (const stage of stages) {
+    const ref = stage.order.reference_number
+    let group = groups.get(ref)
+    if (!group) {
+      group = {
+        orderRef: ref,
+        itemDescription: stage.order.item_description,
+        customerName: stage.order.customer_name,
+        stages: [],
+      }
+      groups.set(ref, group)
+    }
+    group.stages.push(stage)
+  }
+  return [...groups.values()]
+}
+
+const PENDING_COLLAPSE_AT = 4
+
+function UpNextPanel({ groups }: { groups: PendingGroup[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const visible = expanded ? groups : groups.slice(0, PENDING_COLLAPSE_AT)
+  const hiddenCount = groups.length - visible.length
+  const stageCount = groups.reduce((n, g) => n + g.stages.length, 0)
+
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <CardHeader className="gap-1 border-b border-border py-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Clock className="size-4 text-muted-foreground" />
+          Up next
+          <span className="font-normal text-muted-foreground">
+            ({stageCount} stage{stageCount === 1 ? "" : "s"} queued)
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col divide-y divide-border p-0">
+        {visible.map((group) => (
+          <div key={group.orderRef} className="flex items-start justify-between gap-3 px-4 py-3">
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {group.orderRef}
+                </span>
+                <span className="text-sm font-medium">{group.itemDescription}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">{group.customerName}</span>
+            </div>
+            <div className="flex flex-col items-end gap-0.5">
+              {group.stages.map((stage) => (
+                <span key={stage.id} className="text-xs text-muted-foreground">
+                  {stage.stage_name}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="w-full border-t border-border py-2.5 text-center text-sm font-medium text-primary hover:bg-muted/50"
+        >
+          Show {hiddenCount} more order{hiddenCount === 1 ? "" : "s"}
+        </button>
+      )}
+    </Card>
   )
 }
 
@@ -290,92 +393,35 @@ function TaskCard({
   completing: boolean
   onDone: () => void
 }) {
-  const isActive = stage.status === "ACTIVE"
-
   return (
-    <Card
-      className={cn(
-        "gap-0 overflow-hidden border-l-4",
-        isActive
-          ? "border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20"
-          : "border-l-yellow-400 bg-yellow-50/40 dark:bg-yellow-950/20 opacity-85"
-      )}
-    >
-      <CardHeader className="gap-1 pb-3">
-        <div className="flex items-center justify-between gap-2">
+    <Card size="sm" className="gap-2 overflow-hidden border-l-4 border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20">
+      <CardContent className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">
             {stage.order.reference_number}
           </span>
-          <TaskStatusBadge status={stage.status} />
+          <Badge className="gap-1 border-transparent bg-blue-600 text-white dark:bg-blue-500">
+            <Hammer className="size-3" />
+            {stage.stage_name}
+          </Badge>
         </div>
-        <CardTitle className="text-base leading-snug">
-          {stage.order.item_description}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">{stage.order.customer_name}</p>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-3 pt-0">
-        <div
-          className={cn(
-            "flex items-center gap-2 rounded-md px-3 py-2",
-            isActive
-              ? "bg-blue-100/60 dark:bg-blue-900/30"
-              : "bg-yellow-100/60 dark:bg-yellow-900/30"
-          )}
-        >
-          <Hammer
-            className={cn(
-              "size-4",
-              isActive
-                ? "text-blue-600 dark:text-blue-400"
-                : "text-yellow-600 dark:text-yellow-400"
-            )}
-          />
-          <span className="text-sm font-medium">{stage.stage_name}</span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{stage.order.item_description}</p>
+          <p className="truncate text-xs text-muted-foreground">{stage.order.customer_name}</p>
         </div>
 
-        {!isActive && (
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Lock className="size-3.5" />
-            Waiting for the previous stage to finish.
-          </p>
-        )}
-
-        {isActive && (
-          <>
-            <Button
-              className="h-12 w-full bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-base"
-              onClick={onDone}
-              disabled={completing}
-            >
-              <CheckCircle2 data-icon="inline-start" />
-              {completing ? "Saving…" : "Mark done"}
-            </Button>
-            <RequestMaterialDialog stage={stage} />
-          </>
-        )}
+        <div className="flex items-center gap-2">
+          <Button
+            className="h-9 flex-1 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            onClick={onDone}
+            disabled={completing}
+          >
+            <CheckCircle2 data-icon="inline-start" />
+            {completing ? "Saving…" : "Mark done"}
+          </Button>
+          <RequestMaterialDialog stage={stage} />
+        </div>
       </CardContent>
     </Card>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Badge
-// ---------------------------------------------------------------------------
-
-function TaskStatusBadge({ status }: { status: QueueStage["status"] }) {
-  if (status === "ACTIVE") {
-    return (
-      <Badge className="gap-1 border-transparent bg-blue-600 text-white dark:bg-blue-500">
-        <Hammer className="size-3" />
-        In progress
-      </Badge>
-    )
-  }
-  return (
-    <Badge className="gap-1 border border-yellow-400 bg-yellow-50 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300">
-      <Clock className="size-3" />
-      Pending
-    </Badge>
   )
 }

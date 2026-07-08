@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MapPin, Package, Search, ShoppingBag } from "lucide-react"
+import { Download, Loader2, MapPin, Package, Search, ShoppingBag } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import {
   BarChart,
@@ -15,6 +15,7 @@ import {
 } from "recharts"
 
 import api from "@/lib/api"
+import { generateBranchesPDF } from "@/lib/generators/branches"
 import { cn } from "@/lib/utils"
 import {
   Card,
@@ -123,6 +124,22 @@ function MetricItem({
 export function BranchesView() {
   const [selected, setSelected] = useState<number | "all">("all")
   const [search, setSearch] = useState("")
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      generateBranchesPDF({
+        totalBranches: branches.length,
+        totalItems: items.length,
+        availableItems: items.filter((i) => i.status === "AVAILABLE").length,
+        totalRevenue: sales.reduce((s, sale) => s + Number(sale.sale_price), 0),
+        branchStats,
+      })
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const { data: branches = [] } = useQuery({
     queryKey: ["branches"],
@@ -175,7 +192,14 @@ export function BranchesView() {
     : branchScopedItems
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading} className="gap-1.5">
+          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          {downloading ? "Generating…" : "Download PDF"}
+        </Button>
+      </div>
+      <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="space-y-1">
         <h2 className="text-2xl font-semibold tracking-tight text-balance">Branches</h2>
@@ -367,6 +391,7 @@ export function BranchesView() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

@@ -8,7 +8,6 @@ import { toast } from "sonner"
 import api from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -557,28 +556,37 @@ export function DirectorPortal() {
         </div>
       </div>
 
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as DirectorTab)}
-        className="gap-6"
-      >
-        <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="queue" className="gap-1.5">
-            Approval queue
-            {pendingCount > 0 && (
+      <div className="flex overflow-x-auto border-b border-border">
+        {(
+          [
+            { value: "queue",    label: "Approval queue" },
+            { value: "costs",    label: "Cost & margin" },
+            { value: "payroll",  label: "Payroll" },
+            { value: "report",   label: "Weekly report" },
+            { value: "funds",    label: "Funds" },
+            { value: "revenue",  label: "Revenue" },
+            { value: "invoices", label: "Invoices" },
+          ] as { value: DirectorTab; label: string }[]
+        ).map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setTab(t.value)}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+              tab === t.value
+                ? "border-b-2 border-foreground text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+            {t.value === "queue" && pendingCount > 0 && (
               <span className="rounded-full bg-foreground/10 px-1.5 text-xs font-medium tabular-nums">
                 {pendingCount}
               </span>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="costs">Cost &amp; margin</TabsTrigger>
-          <TabsTrigger value="payroll">Payroll</TabsTrigger>
-          <TabsTrigger value="report">Weekly report</TabsTrigger>
-          <TabsTrigger value="funds">Funds</TabsTrigger>
-          <TabsTrigger value="revenue">Revenue</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
-        </TabsList>
-      </Tabs>
+          </button>
+        ))}
+      </div>
 
       {tab === "queue" && <ApprovalQueue />}
       {tab === "costs" && <CostBreakdown />}

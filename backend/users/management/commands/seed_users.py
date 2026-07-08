@@ -17,16 +17,15 @@ BRANCHES = [
     {"name": "City Branch", "code": "B", "location": "Dar es Salaam – Mikocheni"},
 ]
 
-# (username, first, last, role, branch_idx, phone, pin)
-# pin is only used for TECHNICIAN accounts — it becomes the password so the
-# 4-digit keypad on the login page works. Leave blank for staff users.
+# (username, first, last, role, branch_idx, phone, password_override)
+# Leave password_override blank to use the default_pass argument.
 USERS = [
     ("ivan",   "Ivan",   "",  "DIRECTOR",     0, "", ""),
     ("shimi",  "Shimi",  "",  "DIRECTOR",     0, "", ""),
     ("john",   "John",   "",  "STOCK_KEEPER", 0, "", ""),
     ("nancy",  "Nancy",  "",  "FRONT_DESK",   1, "", ""),
     ("tecla",  "Tecla",  "",  "OPS_MANAGER",  0, "", ""),
-    ("allen",  "Allen",  "",  "TECHNICIAN",   0, "", "1234"),
+    ("allen",  "Allen",  "",  "TECHNICIAN",   0, "", ""),
 ]
 
 
@@ -69,7 +68,7 @@ class Command(BaseCommand):
         self.stdout.write("")
 
         # -- Users -----------------------------------------------------------
-        for username, first, last, role, branch_idx, phone, pin in USERS:
+        for username, first, last, role, branch_idx, phone, pw_override in USERS:
             if User.objects.filter(username=username).exists():
                 self.stdout.write(f"  user   [exists ]  {username:<12} ({role})")
                 continue
@@ -83,7 +82,7 @@ class Command(BaseCommand):
                 branch=branches[branch_idx],
                 phone_number=phone,
             )
-            user.set_password(pin if pin else default_pass)
+            user.set_password(pw_override if pw_override else default_pass)
             user.save()
             self.stdout.write(
                 self.style.SUCCESS(f"  user   [created]  {username:<12} ({role})")
@@ -96,7 +95,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("=" * 52))
         self.stdout.write(f"  {'USERNAME':<14} {'ROLE':<15} CREDENTIAL")
         self.stdout.write("  " + "-" * 46)
-        for username, _, _, role, _, _, pin in USERS:
-            credential = f"PIN: {pin}" if pin else default_pass
+        for username, _, _, role, _, _, pw_override in USERS:
+            credential = pw_override if pw_override else default_pass
             self.stdout.write(f"  {username:<14} {role:<15} {credential}")
         self.stdout.write(self.style.SUCCESS("=" * 52))

@@ -61,6 +61,7 @@ interface ShowroomItem {
   category_id: number | null
   category: string
   price: string
+  cost_price: string | null
   quantity: number
   status: "AVAILABLE" | "OUT_OF_STOCK"
   branch_id: number
@@ -216,6 +217,7 @@ function AddItemDialog({
   const [typeCode, setTypeCode] = useState("")
   const [categoryId, setCategoryId] = useState("")
   const [price, setPrice] = useState("")
+  const [costPrice, setCostPrice] = useState("")
   const [quantity, setQuantity] = useState("1")
   const [description, setDescription] = useState("")
   const [components, setComponents] = useState("")
@@ -255,7 +257,7 @@ function AddItemDialog({
   function reset() {
     setIsSet(false)
     setName(""); setRoom(""); setTypeCode(""); setCategoryId("")
-    setPrice(""); setQuantity("1"); setDescription(""); setComponents("")
+    setPrice(""); setCostPrice(""); setQuantity("1"); setDescription(""); setComponents("")
     setImageFiles([]); setImagePreviews([]); setErrors({})
   }
 
@@ -277,6 +279,7 @@ function AddItemDialog({
       fd.append("is_set", String(isSet))
       if (categoryId) fd.append("category_id", categoryId)
       fd.append("price", price)
+      if (costPrice.trim()) fd.append("cost_price", costPrice)
       fd.append("quantity", quantity)
       fd.append("description", isSet ? components : description)
       imageFiles.forEach((f) => fd.append("images", f))
@@ -436,7 +439,7 @@ function AddItemDialog({
             {/* Price + Quantity */}
             <div className="grid grid-cols-2 gap-3">
               <Field>
-                <FieldLabel htmlFor="ai-price">Price (TZS)</FieldLabel>
+                <FieldLabel htmlFor="ai-price">Sale price (TZS)</FieldLabel>
                 <Input
                   id="ai-price"
                   type="number"
@@ -450,19 +453,34 @@ function AddItemDialog({
                 {errors.price && <FieldError errors={[{ message: errors.price }]} />}
               </Field>
               <Field>
-                <FieldLabel htmlFor="ai-qty">
-                  {isSet ? "Sets in stock" : "Units in stock"}
+                <FieldLabel htmlFor="ai-cost-price">
+                  Cost price (TZS) <span className="text-muted-foreground font-normal">(optional)</span>
                 </FieldLabel>
                 <Input
-                  id="ai-qty"
+                  id="ai-cost-price"
                   type="number"
-                  min="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
+                  min="0"
+                  step="0.01"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(e.target.value)}
+                  placeholder="0.00"
                 />
-                {errors.quantity && <FieldError errors={[{ message: errors.quantity }]} />}
+                {errors.cost_price && <FieldError errors={[{ message: errors.cost_price }]} />}
               </Field>
             </div>
+            <Field>
+              <FieldLabel htmlFor="ai-qty">
+                {isSet ? "Sets in stock" : "Units in stock"}
+              </FieldLabel>
+              <Input
+                id="ai-qty"
+                type="number"
+                min="1"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+              />
+              {errors.quantity && <FieldError errors={[{ message: errors.quantity }]} />}
+            </Field>
 
             {/* What's included — set only */}
             {isSet ? (
@@ -895,6 +913,14 @@ function ItemPreviewDialog({
                 </div>
               )}
               <p className="text-xs text-muted-foreground">Fixed sale price</p>
+              {item.cost_price != null && (
+                <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                  Cost: {currency.format(Number(item.cost_price))}
+                  <span className="ml-2 text-muted-foreground/70">
+                    (margin {Math.round((1 - Number(item.cost_price) / Number(item.price)) * 100)}%)
+                  </span>
+                </p>
+              )}
             </div>
 
             {item.description && (

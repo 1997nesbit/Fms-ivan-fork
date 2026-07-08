@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { TrendingUp, ShoppingBag, Hammer, Search } from "lucide-react"
+import { TrendingUp, ShoppingBag, Hammer, Search, Download, Loader2 } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import {
   PieChart,
@@ -18,7 +18,9 @@ import {
 } from "recharts"
 
 import api from "@/lib/api"
+import { generateRevenuePDF } from "@/lib/generators/revenue"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -170,6 +172,22 @@ export function RevenueView() {
   const [tab, setTab] = useState<RevenueTab>("overview")
   const [workshopSearch, setWorkshopSearch] = useState("")
   const [showroomSearch, setShowroomSearch] = useState("")
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      generateRevenuePDF({
+        totalRevenue,
+        workshopRevenue,
+        showroomRevenue,
+        dispatchedOrders,
+        sales,
+      })
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const { data: dispatchedOrders = [] } = useQuery({
     queryKey: ["revenue-orders"],
@@ -262,7 +280,14 @@ export function RevenueView() {
   ]
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading} className="gap-1.5">
+          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          {downloading ? "Generating…" : "Download PDF"}
+        </Button>
+      </div>
+      <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="space-y-1">
         <h2 className="text-2xl font-semibold tracking-tight text-balance">Revenue</h2>
@@ -532,6 +557,7 @@ export function RevenueView() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   )
 }

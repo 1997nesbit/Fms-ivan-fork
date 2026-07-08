@@ -35,6 +35,7 @@ interface InventoryItem {
   id: number
   name: string
   unit: string
+  unit_cost: string | null
   current_quantity: string
   minimum_threshold: string
   is_low_stock: boolean
@@ -77,10 +78,11 @@ function AddItemDialog({
   const [unit, setUnit] = useState("")
   const [qty, setQty] = useState("0")
   const [threshold, setThreshold] = useState("0")
+  const [unitCost, setUnitCost] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   function reset() {
-    setName(""); setUnit(""); setQty("0"); setThreshold("0"); setErrors({})
+    setName(""); setUnit(""); setQty("0"); setThreshold("0"); setUnitCost(""); setErrors({})
   }
 
   const add = useMutation({
@@ -90,6 +92,7 @@ function AddItemDialog({
         unit,
         current_quantity: qty,
         minimum_threshold: threshold,
+        ...(unitCost.trim() ? { unit_cost: unitCost } : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] })
@@ -174,6 +177,21 @@ function AddItemDialog({
                 )}
               </Field>
             </div>
+            <Field>
+              <FieldLabel htmlFor="item-unit-cost">
+                Unit cost (TZS) <span className="text-muted-foreground font-normal">(optional)</span>
+              </FieldLabel>
+              <Input
+                id="item-unit-cost"
+                type="number"
+                min="0"
+                step="0.01"
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
+                placeholder="0.00"
+              />
+              {errors.unit_cost && <FieldError errors={[{ message: errors.unit_cost }]} />}
+            </Field>
           </FieldGroup>
         </form>
         <div className="flex justify-end gap-2 pt-2">
@@ -205,12 +223,14 @@ function EditItemDialog({
   const queryClient = useQueryClient()
   const [qty, setQty] = useState(formatQty(item.current_quantity))
   const [threshold, setThreshold] = useState(formatQty(item.minimum_threshold))
+  const [unitCost, setUnitCost] = useState(item.unit_cost ?? "")
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setQty(formatQty(item.current_quantity))
       setThreshold(formatQty(item.minimum_threshold))
+      setUnitCost(item.unit_cost ?? "")
       setError(null)
     }
   }, [open, item])
@@ -220,6 +240,7 @@ function EditItemDialog({
       api.patch(`/stock/items/${item.id}/`, {
         current_quantity: qty,
         minimum_threshold: threshold,
+        unit_cost: unitCost.trim() || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] })
@@ -266,6 +287,18 @@ function EditItemDialog({
               step="0.001"
               value={threshold}
               onChange={(e) => setThreshold(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="edit-unit-cost">Unit cost (TZS)</FieldLabel>
+            <Input
+              id="edit-unit-cost"
+              type="number"
+              min="0"
+              step="0.01"
+              value={unitCost}
+              onChange={(e) => setUnitCost(e.target.value)}
+              placeholder="Leave blank to clear"
             />
           </Field>
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -341,6 +374,7 @@ export function InventoryLedger() {
             <TableRow>
               <TableHead>Material</TableHead>
               <TableHead>Unit</TableHead>
+              <TableHead className="text-right">Unit cost</TableHead>
               <TableHead className="text-right">On hand</TableHead>
               <TableHead className="text-right">Low-stock level</TableHead>
               <TableHead className="text-right">Status</TableHead>
@@ -350,14 +384,14 @@ export function InventoryLedger() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                   {search ? "No materials match your search." : "No inventory items yet."}
                 </TableCell>
               </TableRow>
@@ -372,6 +406,11 @@ export function InventoryLedger() {
               >
                 <TableCell className="font-medium">{item.name}</TableCell>
                 <TableCell className="text-muted-foreground">{item.unit}</TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {item.unit_cost != null
+                    ? `TSh ${Number(item.unit_cost).toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+                    : <span className="italic text-muted-foreground/60">—</span>}
+                </TableCell>
                 <TableCell className="text-right tabular-nums font-semibold">
                   {formatQty(item.current_quantity)}
                 </TableCell>

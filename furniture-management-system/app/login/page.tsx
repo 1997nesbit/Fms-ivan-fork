@@ -1,39 +1,20 @@
 "use client"
 
-import { Suspense, type FormEvent, useCallback, useEffect, useState } from "react"
+import { Suspense, type FormEvent, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import {
-  AlertCircle,
-  Armchair,
-  Delete,
-  Eye,
-  EyeOff,
-  Hammer,
-  Loader2,
-  Lock,
-  Users,
-} from "lucide-react"
+import { AlertCircle, Armchair, Eye, EyeOff, Loader2, Lock } from "lucide-react"
 
 import { login, ROLE_PORTAL } from "@/lib/auth"
 import { useAuth } from "@/app/providers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
-import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 type ApiError = { response?: { data?: { detail?: string } } }
-
-const PIN_LENGTH = 4
 
 // ---------------------------------------------------------------------------
 // Page
@@ -94,77 +75,32 @@ function LoginPageInner() {
           </div>
         </div>
 
-        {/* Login tabs */}
-        <Tabs defaultValue="staff" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-auto p-1">
-            <TabsTrigger
-              value="staff"
-              className="flex flex-col items-center gap-1 py-2.5 h-auto"
-            >
-              <Users className="size-4" />
-              <span className="text-xs font-medium">Staff Login</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="technician"
-              className="flex flex-col items-center gap-1 py-2.5 h-auto"
-            >
-              <Hammer className="size-4" />
-              <span className="text-xs font-medium">Technician PIN</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ── Staff tab ── */}
-          <TabsContent
-            value="staff"
-            className="mt-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-300"
-          >
-            <div className="rounded-xl border border-border bg-card p-5 shadow-lg shadow-black/5 space-y-5">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                  <Lock className="size-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">Staff Portal</p>
-                  <p className="text-xs text-muted-foreground">
-                    Front Desk · Director · Operations · Stock Keeper
-                  </p>
-                </div>
-              </div>
-              <StaffLoginForm onLogin={handleLogin} />
+        {/* Login card */}
+        <div className="rounded-xl border border-border bg-card p-5 shadow-lg shadow-black/5 space-y-5">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Lock className="size-4" />
+            </span>
+            <div>
+              <p className="text-sm font-medium">Sign in</p>
+              <p className="text-xs text-muted-foreground">
+                Enter your credentials to access your portal
+              </p>
             </div>
-          </TabsContent>
+          </div>
+          <LoginForm onLogin={handleLogin} />
+        </div>
 
-          {/* ── Technician PIN tab ── */}
-          <TabsContent
-            value="technician"
-            className="mt-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-300"
-          >
-            <div className="rounded-xl border border-border bg-card p-5 shadow-lg shadow-black/5 space-y-5">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <Hammer className="size-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">Workshop Floor</p>
-                  <p className="text-xs text-muted-foreground">
-                    Select your name and enter your 4-digit PIN
-                  </p>
-                </div>
-              </div>
-              <TechnicianPinForm onLogin={handleLogin} />
-            </div>
-          </TabsContent>
-        </Tabs>
       </div>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Staff login form (username + password → JWT)
+// Login form
 // ---------------------------------------------------------------------------
 
-function StaffLoginForm({ onLogin }: { onLogin: (u: string, p: string) => Promise<void> }) {
+function LoginForm({ onLogin }: { onLogin: (u: string, p: string) => Promise<void> }) {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -239,143 +175,5 @@ function StaffLoginForm({ onLogin }: { onLogin: (u: string, p: string) => Promis
         {submitting ? <Loader2 className="size-4 animate-spin" /> : "Sign in"}
       </Button>
     </form>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Technician PIN form (username + numeric keypad → JWT)
-// ---------------------------------------------------------------------------
-
-function TechnicianPinForm({ onLogin }: { onLogin: (u: string, p: string) => Promise<void> }) {
-  const [username, setUsername] = useState("")
-  const [pin, setPin] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  const attemptLogin = useCallback(
-    async (candidate: string) => {
-      if (!username.trim()) {
-        setError("Enter your username first.")
-        setPin("")
-        return
-      }
-      setSubmitting(true)
-      setError(null)
-      try {
-        await onLogin(username.trim(), candidate)
-      } catch {
-        setError("Incorrect PIN. Try again.")
-        setTimeout(() => setPin(""), 300)
-      } finally {
-        setSubmitting(false)
-      }
-    },
-    [username, onLogin]
-  )
-
-  function pressDigit(digit: string) {
-    if (submitting) return
-    setError(null)
-    setPin((prev) => {
-      if (prev.length >= PIN_LENGTH) return prev
-      const next = prev + digit
-      if (next.length === PIN_LENGTH) {
-        attemptLogin(next)
-      }
-      return next
-    })
-  }
-
-  function backspace() {
-    setError(null)
-    setPin((prev) => prev.slice(0, -1))
-  }
-
-  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
-  const canType = username.trim().length > 0 && !submitting
-
-  return (
-    <div className="space-y-5">
-      <Field>
-        <FieldLabel htmlFor="tech-username">Your username</FieldLabel>
-        <Input
-          id="tech-username"
-          value={username}
-          onChange={(e) => {
-            setUsername(e.target.value)
-            setPin("")
-            setError(null)
-          }}
-          autoComplete="username"
-          placeholder="e.g. juma.tech"
-        />
-      </Field>
-
-      {/* PIN dots */}
-      <div className="flex flex-col items-center gap-2">
-        <div className="flex items-center gap-3" aria-label="PIN entry">
-          {Array.from({ length: PIN_LENGTH }).map((_, i) => (
-            <span
-              key={i}
-              className={cn(
-                "size-3.5 rounded-full border-2 transition-all duration-150",
-                i < pin.length
-                  ? "scale-110 border-amber-500 bg-amber-500"
-                  : "border-muted-foreground/30 bg-transparent"
-              )}
-            />
-          ))}
-        </div>
-        <p
-          className={cn(
-            "min-h-5 text-xs",
-            error ? "text-destructive" : "text-muted-foreground"
-          )}
-          role={error ? "alert" : undefined}
-        >
-          {error ?? (canType ? "Enter your 4-digit PIN" : " ")}
-        </p>
-      </div>
-
-      {/* Keypad */}
-      <div className="grid grid-cols-3 gap-2">
-        {keys.map((k) => (
-          <Button
-            key={k}
-            type="button"
-            variant="outline"
-            className="h-14 text-xl font-medium transition-transform active:scale-95"
-            onClick={() => pressDigit(k)}
-            disabled={!canType}
-          >
-            {k}
-          </Button>
-        ))}
-        <span aria-hidden />
-        <Button
-          type="button"
-          variant="outline"
-          className="h-14 text-xl font-medium transition-transform active:scale-95"
-          onClick={() => pressDigit("0")}
-          disabled={!canType}
-        >
-          0
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-14 transition-transform active:scale-95"
-          onClick={backspace}
-          disabled={pin.length === 0}
-          aria-label="Delete last digit"
-        >
-          {submitting ? (
-            <Loader2 className="size-5 animate-spin" />
-          ) : (
-            <Delete className="size-5" />
-          )}
-        </Button>
-      </div>
-    </div>
   )
 }

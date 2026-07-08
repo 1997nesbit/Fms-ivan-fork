@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Search } from "lucide-react"
+import { Download, Loader2, Search } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import {
   BarChart,
@@ -14,7 +14,9 @@ import {
 } from "recharts"
 
 import api from "@/lib/api"
+import { generateCostBreakdownPDF } from "@/lib/generators/cost-breakdown-report"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -89,6 +91,29 @@ function SummaryStat({
 
 export function CostBreakdown() {
   const [search, setSearch] = useState("")
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      generateCostBreakdownPDF({
+        totalLabour,
+        pendingLabour,
+        paidLabour,
+        byOrder,
+        payments: filteredPayments.map((p) => ({
+          technician_name: p.technician_name,
+          stage_name: p.stage_name,
+          order_reference: p.order_reference,
+          status: p.status,
+          amount: Number(p.amount),
+          created_at: p.created_at,
+        })),
+      })
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["cost-breakdown-payments"],
@@ -148,7 +173,14 @@ export function CostBreakdown() {
   }, [payments])
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading} className="gap-1.5">
+          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          {downloading ? "Generating…" : "Download PDF"}
+        </Button>
+      </div>
+      <div className="flex flex-col gap-6">
       {/* KPI summary */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <SummaryStat label="Total labour (all time)" value={formatMoney(totalLabour)} />
@@ -300,6 +332,7 @@ export function CostBreakdown() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   )
 }

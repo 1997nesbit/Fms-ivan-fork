@@ -79,9 +79,8 @@ export function RequestMaterialDialog({ stage }: { stage: QueueStage }) {
     >
       <DialogTrigger
         render={
-          <Button variant="outline" className="h-11 w-full">
-            <PackagePlus data-icon="inline-start" />
-            Request materials
+          <Button variant="outline" size="icon-lg" aria-label="Request materials" title="Request materials">
+            <PackagePlus />
           </Button>
         }
       />
