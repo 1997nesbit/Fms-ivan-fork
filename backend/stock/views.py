@@ -523,6 +523,13 @@ class RestockRequestListCreateView(APIView):
             if status_f:
                 qs = qs.filter(status=status_f)
 
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+        if date_from:
+            qs = qs.filter(created_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(created_at__date__lte=date_to)
+
         return Response({"results": [_restock_payload(r) for r in qs]})
 
     def post(self, request):

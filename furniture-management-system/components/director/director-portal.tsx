@@ -30,13 +30,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { LowStockBanner } from "@/components/stock-keeper/issue-materials-screen"
-import { CostBreakdown } from "@/components/director/cost-breakdown"
-import { InvoiceScreen } from "@/components/director/invoice-screen"
-import { PayrollView } from "@/components/director/payroll-view"
-import { WeeklyReportView } from "@/components/director/weekly-report-view"
 import { FundsApproval } from "@/components/director/funds-approval"
-import { RevenueView } from "@/components/director/revenue-view"
-import type { WeekKey } from "@/components/director/week-selector"
+import { ReportsPortal } from "@/components/director/reports/reports-portal"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -511,11 +506,10 @@ function ApprovalQueue() {
 // Portal
 // ---------------------------------------------------------------------------
 
-type DirectorTab = "queue" | "costs" | "payroll" | "report" | "funds" | "revenue" | "invoices"
+type DirectorTab = "queue" | "reports" | "funds"
 
 export function DirectorPortal() {
   const [tab, setTab] = useState<DirectorTab>("queue")
-  const [week, setWeek] = useState<WeekKey>("this")
 
   // Fetch pending count for badge
   const { data: queueData } = useQuery({
@@ -560,12 +554,8 @@ export function DirectorPortal() {
         {(
           [
             { value: "queue",    label: "Approval queue" },
-            { value: "costs",    label: "Cost & margin" },
-            { value: "payroll",  label: "Payroll" },
-            { value: "report",   label: "Weekly report" },
+            { value: "reports",  label: "Reports" },
             { value: "funds",    label: "Funds" },
-            { value: "revenue",  label: "Revenue" },
-            { value: "invoices", label: "Invoices" },
           ] as { value: DirectorTab; label: string }[]
         ).map((t) => (
           <button
@@ -589,12 +579,8 @@ export function DirectorPortal() {
       </div>
 
       {tab === "queue" && <ApprovalQueue />}
-      {tab === "costs" && <CostBreakdown />}
-      {tab === "payroll" && <PayrollView week={week} onWeekChange={setWeek} />}
-      {tab === "report" && <WeeklyReportView week={week} onWeekChange={setWeek} />}
+      {tab === "reports" && <ReportsPortal />}
       {tab === "funds" && <FundsApproval />}
-      {tab === "revenue" && <RevenueView />}
-      {tab === "invoices" && <InvoiceScreen />}
     </div>
   )
 }

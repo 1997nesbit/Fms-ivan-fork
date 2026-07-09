@@ -4,11 +4,10 @@ import { useState } from "react"
 import { Store } from "lucide-react"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ShopReportsScreen } from "@/components/shop/shop-reports-screen"
 import { CatalogueScreen } from "@/components/shop/catalogue-screen"
 import { ShowroomSettingsScreen } from "@/components/shop/showroom-settings-screen"
 
-type DirectorShopTab = "catalogue" | "settings" | "reports"
+type DirectorShopTab = "catalogue" | "settings"
 
 export function ShopDirectorPortal() {
   const [mainTab, setMainTab] = useState<DirectorShopTab>("catalogue")
@@ -25,7 +24,7 @@ export function ShopDirectorPortal() {
             Showroom — Director
           </h1>
           <p className="max-w-2xl text-pretty text-muted-foreground">
-            Browse the showroom catalogue, manage catalogue settings, and view sales reports.
+            Browse the showroom catalogue and manage catalogue settings.
           </p>
         </div>
       </div>
@@ -35,13 +34,11 @@ export function ShopDirectorPortal() {
         <TabsList>
           <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {mainTab === "catalogue" && <CatalogueScreen />}
       {mainTab === "settings"  && <ShowroomSettingsScreen />}
-      {mainTab === "reports"   && <ShopReportsScreen />}
     </div>
   )
 }
