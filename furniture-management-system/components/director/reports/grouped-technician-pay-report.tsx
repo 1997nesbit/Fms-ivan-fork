@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { Users } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import autoTable from "jspdf-autotable"
 
@@ -11,14 +11,14 @@ import {
   addSectionHeader, addSummaryTable, checkPageBreak, getLastTableY, MARGIN,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import type { ReportFilterState } from "./report-filters"
 import { filterParams } from "./report-filters"
 import { formatMoney, dateRangeLabel } from "./report-utils"
+import { ReportHeader, StatGrid } from "./report-ui"
 
 interface StageRow { stage_name: string; total: string; count: number }
 interface TechRow {
@@ -95,18 +95,24 @@ export function GroupedTechnicianPayReportTab({ filters }: { filters: ReportFilt
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <CardTitle>Grouped Technician Pay</CardTitle>
-        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading || !data} className="gap-1.5">
-          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-          PDF
-        </Button>
-      </CardHeader>
+      <ReportHeader
+        icon={Users}
+        title="Grouped Technician Pay"
+        description="Pay totals grouped by stage and by technician, for comparing contribution across the workshop."
+        onDownload={handleDownload}
+        downloading={downloading}
+        disabled={downloading || !data}
+      />
       <CardContent className="flex flex-col gap-6">
         {isLoading || !data ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
         ) : (
           <>
+            <StatGrid stats={[
+              { label: "Grand total paid", value: formatMoney(data.grand_total) },
+              { label: "Stages", value: String(byStage.length) },
+              { label: "Technicians", value: String(byTech.length) },
+            ]} />
             <div>
               <h3 className="mb-2 text-sm font-medium">By stage</h3>
               <div className="overflow-x-auto">

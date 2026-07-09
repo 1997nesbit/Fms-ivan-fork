@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { Wallet } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import autoTable from "jspdf-autotable"
 
@@ -11,14 +11,14 @@ import {
   addSectionHeader, addSummaryTable, MARGIN,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import type { ReportFilterState } from "./report-filters"
 import { formatMoney, formatDate, dateRangeLabel } from "./report-utils"
+import { ReportHeader, StatGrid } from "./report-ui"
 
 interface RestockRequestRow {
   id: number
@@ -92,18 +92,25 @@ export function OfficeExpensesReportTab({ filters }: { filters: ReportFilterStat
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <CardTitle>Office Expenses (Fund Requests)</CardTitle>
-        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading} className="gap-1.5">
-          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-          PDF
-        </Button>
-      </CardHeader>
-      <CardContent>
+      <ReportHeader
+        icon={Wallet}
+        title="Office Expenses (Fund Requests)"
+        description="Restock fund requests submitted by Stock Keepers and their approval status."
+        onDownload={handleDownload}
+        downloading={downloading}
+        disabled={downloading}
+      />
+      <CardContent className="flex flex-col gap-4">
         {isLoading ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <StatGrid stats={[
+              { label: "Approved spend", value: formatMoney(approvedTotal) },
+              { label: "Total requests", value: String(rows.length) },
+              { label: "Pending", value: String(rows.filter((r) => r.status === "PENDING").length) },
+            ]} />
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -144,7 +151,8 @@ export function OfficeExpensesReportTab({ filters }: { filters: ReportFilterStat
                 </TableFooter>
               )}
             </Table>
-          </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

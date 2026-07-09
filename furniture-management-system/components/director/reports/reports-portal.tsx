@@ -1,9 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { BarChart3 } from "lucide-react"
+import {
+  BarChart3, TrendingUp, ShoppingBag, Hammer, Layers, Store,
+  User, Users, Wallet, FileText, Package, LayoutDashboard,
+  type LucideIcon,
+} from "lucide-react"
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
 import type { ReportFilterState } from "./report-filters"
 import { ReportFilterBar } from "./report-filters"
 import { GrossReportTab } from "./gross-report"
@@ -19,29 +23,70 @@ import { InvoiceScreen } from "@/components/director/invoice-screen"
 import { ShopReportsScreen } from "@/components/shop/shop-reports-screen"
 
 type ReportKey =
-  | "gross" | "showroom-sales" | "custom-order-sales" | "combined-ledger"
-  | "office-expenses" | "stock-availability" | "technician-pay-individual"
-  | "technician-pay-grouped" | "snapshot" | "invoices" | "shop-reports"
+  | "gross" | "showroom-sales" | "custom-order-sales" | "combined-ledger" | "shop-reports"
+  | "technician-pay-individual" | "technician-pay-grouped"
+  | "office-expenses" | "invoices"
+  | "stock-availability" | "snapshot"
 
-const REPORTS: { key: ReportKey; label: string; usesFilters: boolean }[] = [
-  { key: "gross", label: "Gross Report", usesFilters: true },
-  { key: "showroom-sales", label: "Showroom Sales", usesFilters: true },
-  { key: "custom-order-sales", label: "Custom Order Sales", usesFilters: true },
-  { key: "combined-ledger", label: "Combined Ledger", usesFilters: true },
-  { key: "office-expenses", label: "Office Expenses", usesFilters: true },
-  { key: "stock-availability", label: "Stock Availability", usesFilters: true },
-  { key: "technician-pay-individual", label: "Technician Pay (Individual)", usesFilters: true },
-  { key: "technician-pay-grouped", label: "Technician Pay (Grouped)", usesFilters: true },
-  { key: "snapshot", label: "Snapshot", usesFilters: false },
-  { key: "invoices", label: "Invoices", usesFilters: false },
-  { key: "shop-reports", label: "Shop Reports", usesFilters: false },
+interface ReportMeta {
+  key: ReportKey
+  label: string
+  description: string
+  icon: LucideIcon
+  usesFilters: boolean
+}
+
+interface ReportCategory {
+  label: string
+  icon: LucideIcon
+  reports: ReportMeta[]
+}
+
+const CATEGORIES: ReportCategory[] = [
+  {
+    label: "Sales & Revenue",
+    icon: TrendingUp,
+    reports: [
+      { key: "gross", label: "Gross Report", description: "All-branch revenue overview", icon: TrendingUp, usesFilters: true },
+      { key: "showroom-sales", label: "Showroom Sales", description: "Showroom transactions & revenue", icon: ShoppingBag, usesFilters: true },
+      { key: "custom-order-sales", label: "Custom Order Sales", description: "Dispatched custom orders", icon: Hammer, usesFilters: true },
+      { key: "combined-ledger", label: "Combined Ledger", description: "Merged sales feed with subtotals", icon: Layers, usesFilters: true },
+      { key: "shop-reports", label: "Shop Reports", description: "Showroom sales & inventory value", icon: Store, usesFilters: false },
+    ],
+  },
+  {
+    label: "Payroll",
+    icon: Users,
+    reports: [
+      { key: "technician-pay-individual", label: "Individual Technician", description: "Tasks, pay & time spent per technician", icon: User, usesFilters: true },
+      { key: "technician-pay-grouped", label: "Grouped Technician", description: "Pay by stage & by technician", icon: Users, usesFilters: true },
+    ],
+  },
+  {
+    label: "Finance",
+    icon: Wallet,
+    reports: [
+      { key: "office-expenses", label: "Office Expenses", description: "Restock fund requests", icon: Wallet, usesFilters: true },
+      { key: "invoices", label: "Invoices", description: "Create & manage invoices", icon: FileText, usesFilters: false },
+    ],
+  },
+  {
+    label: "Inventory & Operations",
+    icon: Package,
+    reports: [
+      { key: "stock-availability", label: "Stock Availability", description: "Raw material & showroom stock", icon: Package, usesFilters: true },
+      { key: "snapshot", label: "Snapshot", description: "Current-state dashboard", icon: LayoutDashboard, usesFilters: false },
+    ],
+  },
 ]
+
+const ALL_REPORTS = CATEGORIES.flatMap((c) => c.reports)
 
 export function ReportsPortal() {
   const [tab, setTab] = useState<ReportKey>("gross")
   const [filters, setFilters] = useState<ReportFilterState>({ dateFrom: "", dateTo: "", branchId: "" })
 
-  const activeMeta = REPORTS.find((r) => r.key === tab)!
+  const activeMeta = ALL_REPORTS.find((r) => r.key === tab)!
 
   return (
     <div className="flex flex-col gap-4">
@@ -57,27 +102,88 @@ export function ReportsPortal() {
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as ReportKey)}>
-        <TabsList className="h-auto flex-wrap">
-          {REPORTS.map((r) => (
-            <TabsTrigger key={r.key} value={r.key}>{r.label}</TabsTrigger>
+      <div className="grid min-w-0 gap-4 md:grid-cols-[260px_1fr]">
+        {/* Category nav — desktop only */}
+        <nav className="hidden min-w-0 flex-col gap-5 md:flex md:border-r md:border-border md:pr-4">
+          {CATEGORIES.map((cat) => (
+            <div key={cat.label} className="flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 px-2 pb-1">
+                <cat.icon className="size-3.5 text-muted-foreground" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {cat.label}
+                </p>
+              </div>
+              {cat.reports.map((r) => {
+                const isActive = tab === r.key
+                return (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onClick={() => setTab(r.key)}
+                    className={cn(
+                      "flex items-start gap-2.5 rounded-md border-l-2 px-2.5 py-2 text-left transition-colors",
+                      isActive
+                        ? "border-l-primary bg-accent"
+                        : "border-l-transparent hover:bg-muted",
+                    )}
+                  >
+                    <r.icon
+                      className={cn(
+                        "mt-0.5 size-4 shrink-0",
+                        isActive ? "text-primary" : "text-muted-foreground",
+                      )}
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className={cn("text-sm font-medium leading-tight", isActive ? "text-foreground" : "text-foreground/90")}>
+                        {r.label}
+                      </span>
+                      <span className="text-xs leading-tight text-muted-foreground">
+                        {r.description}
+                      </span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           ))}
-        </TabsList>
-      </Tabs>
+        </nav>
 
-      {activeMeta.usesFilters && <ReportFilterBar value={filters} onChange={setFilters} />}
+        {/* Active report */}
+        <div className="flex min-w-0 flex-col gap-4">
+          {/* Report picker — mobile only */}
+          <div className="flex flex-col gap-1 md:hidden">
+            <label className="text-xs font-medium text-muted-foreground">Report</label>
+            <select
+              className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+              value={tab}
+              onChange={(e) => setTab(e.target.value as ReportKey)}
+            >
+              {CATEGORIES.map((cat) => (
+                <optgroup key={cat.label} label={cat.label}>
+                  {cat.reports.map((r) => (
+                    <option key={r.key} value={r.key}>{r.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">{activeMeta.description}</p>
+          </div>
 
-      {tab === "gross" && <GrossReportTab filters={filters} />}
-      {tab === "showroom-sales" && <ShowroomSalesReportTab filters={filters} />}
-      {tab === "custom-order-sales" && <CustomOrderSalesReportTab filters={filters} />}
-      {tab === "combined-ledger" && <CombinedLedgerReportTab filters={filters} />}
-      {tab === "office-expenses" && <OfficeExpensesReportTab filters={filters} />}
-      {tab === "stock-availability" && <StockAvailabilityReportTab filters={filters} />}
-      {tab === "technician-pay-individual" && <IndividualTechnicianPayReportTab filters={filters} />}
-      {tab === "technician-pay-grouped" && <GroupedTechnicianPayReportTab filters={filters} />}
-      {tab === "snapshot" && <SnapshotReportTab />}
-      {tab === "invoices" && <InvoiceScreen />}
-      {tab === "shop-reports" && <ShopReportsScreen />}
+          {activeMeta.usesFilters && <ReportFilterBar value={filters} onChange={setFilters} />}
+
+          {tab === "gross" && <GrossReportTab filters={filters} />}
+          {tab === "showroom-sales" && <ShowroomSalesReportTab filters={filters} />}
+          {tab === "custom-order-sales" && <CustomOrderSalesReportTab filters={filters} />}
+          {tab === "combined-ledger" && <CombinedLedgerReportTab filters={filters} />}
+          {tab === "shop-reports" && <ShopReportsScreen />}
+          {tab === "technician-pay-individual" && <IndividualTechnicianPayReportTab filters={filters} />}
+          {tab === "technician-pay-grouped" && <GroupedTechnicianPayReportTab filters={filters} />}
+          {tab === "office-expenses" && <OfficeExpensesReportTab filters={filters} />}
+          {tab === "invoices" && <InvoiceScreen />}
+          {tab === "stock-availability" && <StockAvailabilityReportTab filters={filters} />}
+          {tab === "snapshot" && <SnapshotReportTab />}
+        </div>
+      </div>
     </div>
   )
 }

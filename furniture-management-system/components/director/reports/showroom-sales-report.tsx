@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { ShoppingBag } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import autoTable from "jspdf-autotable"
 
@@ -11,14 +11,14 @@ import {
   addSectionHeader, addSummaryTable, MARGIN,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import type { ReportFilterState } from "./report-filters"
 import { filterParams } from "./report-filters"
 import { formatMoney, dateRangeLabel } from "./report-utils"
+import { ReportHeader, StatGrid } from "./report-ui"
 
 interface ShowroomSalesData {
   sales: { total_revenue: string; units_sold: number; transaction_count: number }
@@ -74,31 +74,25 @@ export function ShowroomSalesReportTab({ filters }: { filters: ReportFilterState
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <CardTitle>Showroom Sales</CardTitle>
-        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading || !data} className="gap-1.5">
-          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-          PDF
-        </Button>
-      </CardHeader>
+      <ReportHeader
+        icon={ShoppingBag}
+        title="Showroom Sales"
+        description="Showroom transactions and revenue across branches, with unsold inventory worth."
+        onDownload={handleDownload}
+        downloading={downloading}
+        disabled={downloading || !data}
+      />
       <CardContent className="flex flex-col gap-4">
         {isLoading || !data ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {[
-                ["Total revenue", formatMoney(data.sales.total_revenue)],
-                ["Units sold", String(data.sales.units_sold)],
-                ["Transactions", String(data.sales.transaction_count)],
-                ["Inventory worth (cost)", formatMoney(data.inventory_worth.at_cost)],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-lg font-semibold">{value}</p>
-                </div>
-              ))}
-            </div>
+            <StatGrid stats={[
+              { label: "Total revenue", value: formatMoney(data.sales.total_revenue) },
+              { label: "Units sold", value: String(data.sales.units_sold) },
+              { label: "Transactions", value: String(data.sales.transaction_count) },
+              { label: "Inventory worth (cost)", value: formatMoney(data.inventory_worth.at_cost) },
+            ]} />
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>

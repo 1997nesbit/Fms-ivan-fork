@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { LayoutDashboard } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import autoTable from "jspdf-autotable"
 
@@ -11,13 +11,13 @@ import {
   addSectionHeader, checkPageBreak, getLastTableY, MARGIN,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import { formatMoney } from "./report-utils"
+import { ReportHeader, StatGrid } from "./report-ui"
 
 interface BranchSnapshot {
   branch_id: number; branch_name: string; inventory_worth: string
@@ -104,21 +104,25 @@ export function SnapshotReportTab() {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <div className="space-y-1">
-          <CardTitle>Snapshot — Current State</CardTitle>
-          <p className="text-xs text-muted-foreground">No date filter — reflects the system right now.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading || !data} className="gap-1.5">
-          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-          PDF
-        </Button>
-      </CardHeader>
+      <ReportHeader
+        icon={LayoutDashboard}
+        title="Snapshot — Current State"
+        description="No date filter — reflects the system right now."
+        onDownload={handleDownload}
+        downloading={downloading}
+        disabled={downloading || !data}
+      />
       <CardContent className="flex flex-col gap-6">
         {isLoading || !data ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
         ) : (
           <>
+            <StatGrid stats={[
+              { label: "Total inventory worth", value: formatMoney(data.by_branch.reduce((s, b) => s + Number(b.inventory_worth), 0)) },
+              { label: "Showroom items sold", value: String(data.by_branch.reduce((s, b) => s + b.showroom_items_sold, 0)) },
+              { label: "Custom orders sold", value: String(data.by_branch.reduce((s, b) => s + b.custom_orders_sold, 0)) },
+              { label: "Low stock items", value: String(data.raw_materials.filter((m) => m.is_low_stock).length) },
+            ]} />
             <div>
               <h3 className="mb-2 text-sm font-medium">By branch</h3>
               <div className="overflow-x-auto">

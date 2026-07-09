@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { User } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import autoTable from "jspdf-autotable"
 
@@ -11,14 +11,14 @@ import {
   addSectionHeader, addSummaryTable, MARGIN,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import type { ReportFilterState } from "./report-filters"
 import { formatMoney, formatDate, dateRangeLabel } from "./report-utils"
+import { ReportHeader, StatGrid } from "./report-ui"
 
 interface Technician { id: number; name: string }
 interface PaymentRow {
@@ -96,11 +96,19 @@ export function IndividualTechnicianPayReportTab({ filters }: { filters: ReportF
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <CardTitle>Individual Technician Report</CardTitle>
+      <ReportHeader
+        icon={User}
+        title="Individual Technician Report"
+        description="Tasks completed, pay, and time spent per task for one technician."
+        onDownload={handleDownload}
+        downloading={downloading}
+        disabled={downloading || !data}
+      />
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Technician</label>
           <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+            className="h-8 w-64 rounded-md border border-input bg-background px-2 text-sm"
             value={technicianId}
             onChange={(e) => setTechnicianId(e.target.value)}
           >
@@ -110,18 +118,17 @@ export function IndividualTechnicianPayReportTab({ filters }: { filters: ReportF
             ))}
           </select>
         </div>
-        <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading || !data} className="gap-1.5">
-          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-          PDF
-        </Button>
-      </CardHeader>
-      <CardContent>
         {!technicianId ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Select a technician to view their tasks, pay, and time spent per task.</p>
         ) : isLoading ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <StatGrid stats={[
+              { label: "Total paid/owed", value: formatMoney(data?.total ?? 0) },
+              { label: "Tasks completed", value: String(data?.payments.length ?? 0) },
+            ]} />
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -171,7 +178,8 @@ export function IndividualTechnicianPayReportTab({ filters }: { filters: ReportF
                 </TableFooter>
               )}
             </Table>
-          </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
