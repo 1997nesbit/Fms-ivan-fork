@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
 import api from "@/lib/api"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
-  addSectionHeader, addSummaryTable, MARGIN,
+  addSectionHeader, addSummaryTable, MARGIN, buildReportFilename,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
 import { Card, CardContent } from "@/components/ui/card"
@@ -77,7 +77,7 @@ export function GrossReportTab({ filters }: { filters: ReportFilterState }) {
         columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" } },
       })
       addFooter(pdf)
-      pdf.save("gross-report.pdf")
+      pdf.save(buildReportFilename("gross-report", { dateFrom: filters.dateFrom, dateTo: filters.dateTo }))
     } finally {
       setDownloading(false)
     }

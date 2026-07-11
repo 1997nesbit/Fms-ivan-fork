@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
 import api from "@/lib/api"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
-  addSectionHeader, addSummaryTable, MARGIN,
+  addSectionHeader, addSummaryTable, MARGIN, buildReportFilename,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
 import { Badge } from "@/components/ui/badge"
@@ -84,7 +84,7 @@ export function OfficeExpensesReportTab({ filters }: { filters: ReportFilterStat
         columnStyles: { 2: { halign: "right" } },
       })
       addFooter(pdf)
-      pdf.save("office-expenses-report.pdf")
+      pdf.save(buildReportFilename("office-expenses-report", { dateFrom: filters.dateFrom, dateTo: filters.dateTo }))
     } finally {
       setDownloading(false)
     }

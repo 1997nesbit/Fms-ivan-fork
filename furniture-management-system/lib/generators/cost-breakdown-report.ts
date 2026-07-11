@@ -4,7 +4,7 @@ import { PDF_COLORS } from "../pdf-types"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
   addSectionHeader, addSummaryTable, checkPageBreak, getLastTableY,
-  MARGIN,
+  MARGIN, buildReportFilename,
 } from "../pdf-helpers"
 
 // ---------------------------------------------------------------------------
@@ -108,5 +108,5 @@ export function generateCostBreakdownPDF(data: CostBreakdownReportData): void {
   })
 
   addFooter(pdf)
-  pdf.save("cost-breakdown-report.pdf")
+  pdf.save(buildReportFilename("cost-breakdown-report"))
 }

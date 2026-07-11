@@ -4,7 +4,7 @@ import { PDF_COLORS } from "../pdf-types"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
   addSectionHeader, addSummaryTable, checkPageBreak,
-  MARGIN,
+  MARGIN, buildReportFilename,
 } from "../pdf-helpers"
 
 // ---------------------------------------------------------------------------
@@ -75,5 +75,5 @@ export function generateBranchesPDF(data: BranchesReportData): void {
   })
 
   addFooter(pdf)
-  pdf.save("branches-report.pdf")
+  pdf.save(buildReportFilename("branches-report"))
 }

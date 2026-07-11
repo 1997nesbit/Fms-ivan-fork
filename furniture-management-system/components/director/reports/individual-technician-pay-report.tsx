@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
 import api from "@/lib/api"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
-  addSectionHeader, addSummaryTable, MARGIN,
+  addSectionHeader, addSummaryTable, MARGIN, buildReportFilename,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
 import { Badge } from "@/components/ui/badge"
@@ -88,7 +88,10 @@ export function IndividualTechnicianPayReportTab({ filters }: { filters: ReportF
         columnStyles: { 4: { halign: "right" } },
       })
       addFooter(pdf)
-      pdf.save(`technician-pay-${data.technician_name.replace(/\s+/g, "-").toLowerCase()}.pdf`)
+      pdf.save(buildReportFilename(`technician-pay-${data.technician_name}`, {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+      }))
     } finally {
       setDownloading(false)
     }

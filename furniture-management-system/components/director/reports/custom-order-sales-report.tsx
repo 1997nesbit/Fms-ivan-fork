@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
 import api from "@/lib/api"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
-  addSectionHeader, addSummaryTable, MARGIN,
+  addSectionHeader, addSummaryTable, MARGIN, buildReportFilename,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
 import { Card, CardContent } from "@/components/ui/card"
@@ -76,7 +76,7 @@ export function CustomOrderSalesReportTab({ filters }: { filters: ReportFilterSt
         columnStyles: { 5: { halign: "right", fontStyle: "bold" } },
       })
       addFooter(pdf)
-      pdf.save("custom-order-sales-report.pdf")
+      pdf.save(buildReportFilename("custom-order-sales-report", { dateFrom: filters.dateFrom, dateTo: filters.dateTo }))
     } finally {
       setDownloading(false)
     }

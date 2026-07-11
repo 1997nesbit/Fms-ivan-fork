@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
 import api from "@/lib/api"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
-  addSectionHeader, addSummaryTable, checkPageBreak, getLastTableY, MARGIN,
+  addSectionHeader, addSummaryTable, checkPageBreak, getLastTableY, MARGIN, buildReportFilename,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
 import { Card, CardContent } from "@/components/ui/card"
@@ -87,7 +87,7 @@ export function GroupedTechnicianPayReportTab({ filters }: { filters: ReportFilt
       })
 
       addFooter(pdf)
-      pdf.save("grouped-technician-pay-report.pdf")
+      pdf.save(buildReportFilename("grouped-technician-pay-report", { dateFrom: filters.dateFrom, dateTo: filters.dateTo }))
     } finally {
       setDownloading(false)
     }

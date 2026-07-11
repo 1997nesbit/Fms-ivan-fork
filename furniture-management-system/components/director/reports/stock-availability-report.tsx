@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
 import api from "@/lib/api"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
-  addSectionHeader, addSummaryTable, checkPageBreak, getLastTableY, MARGIN,
+  addSectionHeader, addSummaryTable, checkPageBreak, getLastTableY, MARGIN, buildReportFilename,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
 import { Badge } from "@/components/ui/badge"
@@ -94,7 +94,7 @@ export function StockAvailabilityReportTab({ filters }: { filters: ReportFilterS
       })
 
       addFooter(pdf)
-      pdf.save("stock-availability-report.pdf")
+      pdf.save(buildReportFilename("stock-availability-report", { dateFrom: filters.dateFrom, dateTo: filters.dateTo }))
     } finally {
       setDownloading(false)
     }

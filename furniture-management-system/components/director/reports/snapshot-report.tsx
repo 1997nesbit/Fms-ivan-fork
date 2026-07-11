@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
 import api from "@/lib/api"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
-  addSectionHeader, checkPageBreak, getLastTableY, MARGIN,
+  addSectionHeader, checkPageBreak, getLastTableY, MARGIN, buildReportFilename,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
 import { Badge } from "@/components/ui/badge"
@@ -96,7 +96,7 @@ export function SnapshotReportTab() {
       })
 
       addFooter(pdf)
-      pdf.save("snapshot-report.pdf")
+      pdf.save(buildReportFilename("snapshot-report"))
     } finally {
       setDownloading(false)
     }

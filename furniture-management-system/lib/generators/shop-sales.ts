@@ -4,7 +4,7 @@ import { PDF_COLORS } from "../pdf-types"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
   addSectionHeader, addSummaryTable, checkPageBreak, getLastTableY,
-  MARGIN,
+  MARGIN, buildReportFilename,
 } from "../pdf-helpers"
 
 // ---------------------------------------------------------------------------
@@ -14,6 +14,9 @@ import {
 export interface ShopSalesReportData {
   scopeLabel: string
   dateRange: string
+  /** Raw filter values (YYYY-MM-DD), used only to build the download filename. */
+  dateFrom?: string
+  dateTo?: string
   totalSalesValue: number
   unitsSold: number
   unsoldValueRetail: number
@@ -115,5 +118,9 @@ export function generateShopSalesPDF(data: ShopSalesReportData): void {
   })
 
   addFooter(pdf)
-  pdf.save("shop-sales-report.pdf")
+  pdf.save(buildReportFilename("shop-sales-report", {
+    dateFrom: data.dateFrom,
+    dateTo: data.dateTo,
+    branchName: data.scopeLabel !== "All branches" ? data.scopeLabel : null,
+  }))
 }

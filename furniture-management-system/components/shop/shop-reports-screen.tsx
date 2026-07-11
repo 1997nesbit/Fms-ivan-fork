@@ -116,6 +116,8 @@ export function ShopReportsScreen() {
       generateShopSalesPDF({
         scopeLabel,
         dateRange,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
         totalSalesValue,
         unitsSold,
         unsoldValueRetail,

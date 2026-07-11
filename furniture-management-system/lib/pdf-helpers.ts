@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable"
 
 import type { PDFColor } from "./pdf-types"
 import { PDF_COLORS } from "./pdf-types"
+import { LOGO_PNG_BASE64, LOGO_ASPECT } from "./assets/logo"
 
 // ---------------------------------------------------------------------------
 // Page constants
@@ -31,6 +32,38 @@ export function formatCurrency(amount: number | string | null | undefined): stri
 }
 
 // ---------------------------------------------------------------------------
+// buildReportFilename — consistent, sortable filenames for every downloaded
+// PDF: "<report-name>_<branch?>_<date-range-or-generation-date>.pdf". Two
+// downloads of the same report for different periods (or on different days,
+// when there's no date filter to go by) never collide or overwrite one
+// another in the user's Downloads folder.
+// ---------------------------------------------------------------------------
+
+export function slugifyFilenamePart(s: string): string {
+  return s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "")
+}
+
+export function buildReportFilename(
+  baseName: string,
+  opts?: { dateFrom?: string | null; dateTo?: string | null; branchName?: string | null },
+): string {
+  const parts = [slugifyFilenamePart(baseName)]
+  if (opts?.branchName) parts.push(slugifyFilenamePart(opts.branchName))
+  if (opts?.dateFrom && opts?.dateTo) {
+    parts.push(`${opts.dateFrom}_to_${opts.dateTo}`)
+  } else if (opts?.dateFrom) {
+    parts.push(`from-${opts.dateFrom}`)
+  } else if (opts?.dateTo) {
+    parts.push(`through-${opts.dateTo}`)
+  } else {
+    // No date filter applied (e.g. an all-time or current-state report) —
+    // stamp the generation date so re-downloads are still distinguishable.
+    parts.push(new Date().toISOString().slice(0, 10))
+  }
+  return `${parts.join("_")}.pdf`
+}
+
+// ---------------------------------------------------------------------------
 // addHeader — branded top section, returns y after the divider line
 // ---------------------------------------------------------------------------
 
@@ -46,11 +79,14 @@ export function addHeader(
   pdf.setFillColor(pr, pg, pb)
   pdf.rect(0, 0, PAGE_W, 16, "F")
 
-  // Company name in band
-  pdf.setFontSize(11)
-  pdf.setFont("helvetica", "bold")
-  pdf.setTextColor(255, 255, 255)
-  pdf.text(COMPANY, MARGIN, 10.5)
+  // Logo, on a small white backing so it reads against the navy band
+  const logoH = 9.5
+  const logoW = logoH * LOGO_ASPECT
+  const logoX = MARGIN
+  const logoY = (16 - logoH) / 2
+  pdf.setFillColor(255, 255, 255)
+  pdf.roundedRect(logoX - 1.5, logoY - 1.2, logoW + 3, logoH + 2.4, 1.2, 1.2, "F")
+  pdf.addImage(LOGO_PNG_BASE64, "PNG", logoX, logoY, logoW, logoH)
 
   // "REPORT" label on right
   pdf.setFontSize(7.5)

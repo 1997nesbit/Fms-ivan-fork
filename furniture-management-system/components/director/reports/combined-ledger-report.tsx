@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
 import api from "@/lib/api"
 import {
   initializePDF, formatCurrency, addHeader, addFooter,
-  addSectionHeader, addSummaryTable, MARGIN,
+  addSectionHeader, addSummaryTable, MARGIN, buildReportFilename,
 } from "@/lib/pdf-helpers"
 import { PDF_COLORS } from "@/lib/pdf-types"
 import { Badge } from "@/components/ui/badge"
@@ -80,7 +80,7 @@ export function CombinedLedgerReportTab({ filters }: { filters: ReportFilterStat
         columnStyles: { 5: { halign: "right", fontStyle: "bold" } },
       })
       addFooter(pdf)
-      pdf.save("combined-sales-ledger.pdf")
+      pdf.save(buildReportFilename("combined-sales-ledger", { dateFrom: filters.dateFrom, dateTo: filters.dateTo }))
     } finally {
       setDownloading(false)
     }
