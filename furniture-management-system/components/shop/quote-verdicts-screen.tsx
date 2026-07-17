@@ -65,7 +65,7 @@ export function QuoteVerdictsScreen() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Custom quote verdicts
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Front Desk bargains that fell outside the catalogue range. Give the
             final verdict on the price.
           </p>

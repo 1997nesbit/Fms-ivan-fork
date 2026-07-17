@@ -148,7 +148,7 @@ export function EnterStockScreen() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Enter ready-made stock
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Register furniture as individual units at a fixed price. Each unit
             can later be sold on its own or grouped into a set at checkout. Enter
             a quantity to add several identical pieces at once.

@@ -217,7 +217,7 @@ export function CatalogueScreen() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Showroom catalogue
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Browse all items across every showroom branch. Click an item to preview details.
           </p>
         </div>

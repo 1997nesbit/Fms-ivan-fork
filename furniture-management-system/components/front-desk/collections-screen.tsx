@@ -129,7 +129,7 @@ export function CollectionsScreen() {
             <h1 className="text-2xl font-semibold tracking-tight text-balance">
               Collections
             </h1>
-            <p className="max-w-2xl text-pretty text-muted-foreground">
+            <p className="max-w-xl text-pretty text-muted-foreground">
               Follow finished orders from the workshop to the customer&apos;s
               hands — receive returns from technicians and close them out on
               pick-up.

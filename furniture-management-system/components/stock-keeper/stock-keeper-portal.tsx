@@ -78,7 +78,7 @@ function PageShell({
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             {title}
           </h1>
-          <p className="max-w-2xl text-pretty text-sm text-muted-foreground">
+          <p className="max-w-xl text-pretty text-sm text-muted-foreground">
             {description}
           </p>
         </div>

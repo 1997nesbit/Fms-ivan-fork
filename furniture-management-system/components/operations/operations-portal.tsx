@@ -65,7 +65,7 @@ export function OperationsPortal() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Operations Manager Portal
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Plan production for confirmed orders, assign technicians and
             wages, and track the workshop pipeline.
           </p>

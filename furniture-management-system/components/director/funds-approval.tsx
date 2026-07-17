@@ -7,7 +7,6 @@ import { toast } from "sonner"
 
 import api from "@/lib/api"
 import { cn, formatQty } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -17,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { StatusBadge, statusRowTone } from "@/components/shared/status"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,7 +90,7 @@ function PendingCard({
   const [note, setNote] = useState("")
 
   return (
-    <Card className="border-l-4 border-l-yellow-400">
+    <Card className={cn("border", statusRowTone("warning"))}>
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="space-y-1">
@@ -104,10 +104,7 @@ function PendingCard({
               Requested by {req.requested_by_name ?? "Unknown"} · {formatDate(req.created_at)}
             </CardDescription>
           </div>
-          <Badge className="gap-1 border border-yellow-400 bg-yellow-50 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300">
-            <Clock className="size-3" />
-            Pending
-          </Badge>
+          <StatusBadge tone="warning" label="Pending" icon={Clock} />
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 pt-0">
@@ -148,8 +145,8 @@ function ResolvedRow({ req }: { req: RestockRequest }) {
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 rounded-md border-l-4 bg-card px-3 py-2",
-        approved ? "border-l-green-500" : "border-l-muted-foreground/40",
+        "flex items-center justify-between gap-3 rounded-md border px-3 py-2",
+        statusRowTone(approved ? "success" : "neutral"),
       )}
     >
       <div className="flex flex-col">
@@ -162,17 +159,11 @@ function ResolvedRow({ req }: { req: RestockRequest }) {
           {req.review_notes ? ` · "${req.review_notes}"` : ""}
         </span>
       </div>
-      <Badge
-        className={cn(
-          "gap-1",
-          approved
-            ? "border-transparent bg-green-600 text-white dark:bg-green-500"
-            : "border border-border bg-muted text-muted-foreground",
-        )}
-      >
-        {approved ? <Check className="size-3" /> : <X className="size-3" />}
-        {req.status === "APPROVED" ? "Approved" : "Rejected"}
-      </Badge>
+      <StatusBadge
+        tone={approved ? "success" : "neutral"}
+        label={req.status === "APPROVED" ? "Approved" : "Rejected"}
+        icon={approved ? Check : X}
+      />
     </div>
   )
 }

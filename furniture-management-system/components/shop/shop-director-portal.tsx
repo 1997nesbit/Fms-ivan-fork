@@ -23,7 +23,7 @@ export function ShopDirectorPortal() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Showroom — Director
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Browse the showroom catalogue and manage catalogue settings.
           </p>
         </div>

@@ -1064,7 +1064,7 @@ export function ShowroomInventoryScreen() {
             <h1 className="text-2xl font-semibold tracking-tight text-balance">
               Showroom inventory
             </h1>
-            <p className="max-w-2xl text-pretty text-muted-foreground">
+            <p className="max-w-xl text-pretty text-muted-foreground">
               {availableCount} product{availableCount !== 1 ? "s" : ""} in stock
               {outOfStockCount > 0 && ` · ${outOfStockCount} out of stock`}
             </p>

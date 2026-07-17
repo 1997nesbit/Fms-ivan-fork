@@ -118,7 +118,7 @@ export function ManageShopScreen() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Manage shop data
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Add, edit and remove showroom stock and custom-piece catalogue
             entries. Changes flow straight through to the shop, quotes and
             reports.

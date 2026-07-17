@@ -298,7 +298,7 @@ export function AssignmentsManager() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Assignments &amp; wage pricing
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Revisit saved production plans, enter the wages you bargained with
             each technician, then push Start Work to send the job to the first
             technician&apos;s portal.

@@ -125,7 +125,7 @@ export function OtherBranchesScreen() {
             <h1 className="text-2xl font-semibold tracking-tight text-balance">
               Check other branches
             </h1>
-            <p className="max-w-2xl text-pretty text-muted-foreground">
+            <p className="max-w-xl text-pretty text-muted-foreground">
               Search available stock at other showrooms. Direct the customer to that branch
               to pay and collect — stock is not moved between branches.
             </p>

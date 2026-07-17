@@ -41,7 +41,7 @@ function StageBlock({ stage }: { stage: Stage }) {
       <span className="text-xs opacity-80">
         {stage.assigned_technician?.name ?? "Unassigned"}
       </span>
-      <span className="mt-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">
+      <span className="mt-1 text-xs font-semibold uppercase tracking-wide opacity-70">
         {stage.status}
       </span>
     </div>

@@ -5,8 +5,6 @@ import { useQuery } from "@tanstack/react-query"
 import { CalendarClock, CircleDot, Clock } from "lucide-react"
 
 import api from "@/lib/api"
-import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
@@ -19,6 +17,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { StatusBadge, StatusRow } from "@/components/shared/status"
 import type { OpsOrder, Stage, Technician } from "@/components/operations/types"
 
 interface ScheduledStage {
@@ -104,7 +103,7 @@ export function SchedulingBoard() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Scheduling
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Live view of every stage currently in production, grouped by the
             technician responsible. Active stages are underway now; pending
             stages are queued next in the workflow.
@@ -182,15 +181,9 @@ export function SchedulingBoard() {
 
 function ScheduleRow({ item }: { item: ScheduledStage }) {
   const active = item.stage.status === "ACTIVE"
+  const tone = active ? "active" : "warning"
   return (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-3 rounded-md border-l-4 px-3 py-2",
-        active
-          ? "border-l-primary bg-primary/5"
-          : "border-l-yellow-400 bg-yellow-50/40 dark:bg-yellow-950/20"
-      )}
-    >
+    <StatusRow tone={tone}>
       <div className="flex flex-col">
         <span className="text-sm font-medium">{item.stage.stage_name}</span>
         <span className="text-xs text-muted-foreground">
@@ -198,21 +191,12 @@ function ScheduleRow({ item }: { item: ScheduledStage }) {
           {item.position}/{item.total}
         </span>
       </div>
-      <Badge
-        className={cn(
-          "gap-1 shrink-0",
-          active
-            ? "border-transparent bg-primary text-primary-foreground"
-            : "border border-yellow-400 bg-yellow-50 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300"
-        )}
-      >
-        {active ? (
-          <CircleDot className="size-3" />
-        ) : (
-          <Clock className="size-3" />
-        )}
-        {active ? "Active" : "Pending"}
-      </Badge>
-    </div>
+      <StatusBadge
+        tone={tone}
+        label={active ? "Active" : "Pending"}
+        icon={active ? CircleDot : Clock}
+        className="shrink-0"
+      />
+    </StatusRow>
   )
 }

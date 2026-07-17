@@ -43,6 +43,9 @@ type FieldErrors = Record<string, string[]>
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024 // 8MB
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -79,7 +82,28 @@ export function CreateOrderDialog() {
 
   function addImages(files: FileList | null) {
     if (!files) return
-    const previews: ImagePreview[] = Array.from(files).map((file) => ({
+
+    const accepted: File[] = []
+    const rejected: string[] = []
+    for (const file of Array.from(files)) {
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        rejected.push(`${file.name} (unsupported format)`)
+      } else if (file.size > MAX_IMAGE_BYTES) {
+        rejected.push(`${file.name} (over 8MB)`)
+      } else {
+        accepted.push(file)
+      }
+    }
+
+    if (rejected.length > 0) {
+      toast.error(
+        rejected.length === 1 ? "Photo not added" : "Some photos not added",
+        { description: rejected.join(", ") },
+      )
+    }
+
+    if (accepted.length === 0) return
+    const previews: ImagePreview[] = accepted.map((file) => ({
       id: `${Date.now()}-${Math.random()}`,
       file,
       url: URL.createObjectURL(file),
@@ -278,7 +302,7 @@ export function CreateOrderDialog() {
                         type="button"
                         onClick={() => removeImage(img.id)}
                         aria-label={`Remove ${img.file.name}`}
-                        className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-foreground/70 text-background opacity-0 transition-opacity group-hover:opacity-100"
+                        className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-foreground/70 text-background opacity-80 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring"
                       >
                         <X className="size-3" />
                       </button>

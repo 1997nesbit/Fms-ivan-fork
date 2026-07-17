@@ -74,7 +74,7 @@ export function QuotesScreen() {
             <h1 className="text-2xl font-semibold tracking-tight text-balance">
               Custom quotes
             </h1>
-            <p className="max-w-2xl text-pretty text-muted-foreground">
+            <p className="max-w-xl text-pretty text-muted-foreground">
               Bargained prices for bespoke builds. In-range quotes confirm
               instantly; out-of-range quotes wait on the Director&apos;s verdict.
               {pendingCount > 0

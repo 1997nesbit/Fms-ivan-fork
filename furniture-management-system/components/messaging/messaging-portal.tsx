@@ -657,7 +657,7 @@ export function MessagingPortal() {
             <h1 className="text-2xl font-semibold tracking-tight text-balance">
               Messaging
             </h1>
-            <p className="max-w-2xl text-pretty text-muted-foreground">
+            <p className="max-w-xl text-pretty text-muted-foreground">
               Send automated lifecycle notifications and manual messages to customers. Connect your
               SMS provider via environment variables to enable real delivery.
             </p>

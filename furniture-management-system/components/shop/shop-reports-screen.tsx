@@ -248,7 +248,7 @@ export function ShopReportsScreen() {
           </span>
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight text-balance">Shop Reports</h1>
-            <p className="max-w-2xl text-pretty text-muted-foreground">
+            <p className="max-w-xl text-pretty text-muted-foreground">
               Sales performance and inventory overview across every branch.
             </p>
           </div>

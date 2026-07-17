@@ -164,7 +164,7 @@ export function OrdersDashboard() {
             <h1 className="text-2xl font-semibold tracking-tight text-balance">
               Front Desk Portal
             </h1>
-            <p className="max-w-2xl text-pretty text-muted-foreground">
+            <p className="max-w-xl text-pretty text-muted-foreground">
               Create customer orders, track their progress through the workshop,
               and close them out on collection.
             </p>

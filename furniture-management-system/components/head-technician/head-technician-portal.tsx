@@ -197,7 +197,7 @@ export function HeadTechnicianPortal() {
               {totalTasks > 0 && (
                 <span
                   className={cn(
-                    "rounded-full px-1.5 py-0 text-[11px] font-medium tabular-nums leading-5",
+                    "rounded-full px-1.5 py-0 text-xs font-medium tabular-nums leading-5",
                     activeTasks > 0
                       ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
                       : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300"
@@ -214,7 +214,7 @@ export function HeadTechnicianPortal() {
               <CheckCircle2 className="size-3.5" />
               Done
               {doneCount > 0 && (
-                <span className="rounded-full bg-green-100 px-1.5 py-0 text-[11px] font-medium tabular-nums leading-5 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                <span className="rounded-full bg-green-100 px-1.5 py-0 text-xs font-medium tabular-nums leading-5 text-green-700 dark:bg-green-900/50 dark:text-green-300">
                   {doneCount}
                 </span>
               )}
@@ -226,7 +226,7 @@ export function HeadTechnicianPortal() {
               <Wallet className="size-3.5" />
               Financials
               {unsettledBatches > 0 && (
-                <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[11px] font-medium tabular-nums leading-5 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                <span className="rounded-full bg-blue-100 px-1.5 py-0 text-xs font-medium tabular-nums leading-5 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
                   {unsettledBatches}
                 </span>
               )}

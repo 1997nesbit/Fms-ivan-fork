@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   CheckCircle2,
   Clock,
@@ -15,7 +15,6 @@ import { toast } from "sonner"
 
 import api from "@/lib/api"
 import { cn, formatQty, toArray } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -30,6 +29,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { RequestMaterialDialog } from "@/components/head-technician/request-material-dialog"
+import { StatusBadge, StatusRow, statusRowTone, type StatusTone } from "@/components/shared/status"
 
 // ---------------------------------------------------------------------------
 // API types
@@ -85,40 +85,13 @@ function displayStatus(req: MaterialRequest): DisplayStatus {
 
 const REQUEST_STATUS: Record<
   DisplayStatus,
-  { label: string; badge: string; row: string; Icon: typeof CheckCircle2 }
+  { label: string; tone: StatusTone; Icon: typeof CheckCircle2 }
 > = {
-  PENDING: {
-    label: "Awaiting approval",
-    badge:
-      "border border-yellow-400 bg-yellow-50 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300",
-    row: "border-l-yellow-400 bg-yellow-50/40 dark:bg-yellow-950/20",
-    Icon: Clock,
-  },
-  APPROVED: {
-    label: "Approved",
-    badge: "border-transparent bg-green-600 text-white dark:bg-green-500",
-    row: "border-l-green-500 bg-green-50/40 dark:bg-green-950/20",
-    Icon: CheckCircle2,
-  },
-  REJECTED: {
-    label: "Rejected",
-    badge: "border border-border bg-muted text-muted-foreground",
-    row: "border-l-muted-foreground/40 bg-muted/40",
-    Icon: XCircle,
-  },
-  PARTIALLY_ISSUED: {
-    label: "Partially issued",
-    badge:
-      "border border-orange-400 bg-orange-50 text-orange-800 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300",
-    row: "border-l-orange-400 bg-orange-50/40 dark:bg-orange-950/20",
-    Icon: PackageMinus,
-  },
-  ISSUED: {
-    label: "Issued",
-    badge: "border-transparent bg-blue-600 text-white dark:bg-blue-500",
-    row: "border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20",
-    Icon: PackageCheck,
-  },
+  PENDING: { label: "Awaiting approval", tone: "warning", Icon: Clock },
+  APPROVED: { label: "Approved", tone: "success", Icon: CheckCircle2 },
+  REJECTED: { label: "Rejected", tone: "neutral", Icon: XCircle },
+  PARTIALLY_ISSUED: { label: "Partially issued", tone: "attention", Icon: PackageMinus },
+  ISSUED: { label: "Issued", tone: "info", Icon: PackageCheck },
 }
 
 // ---------------------------------------------------------------------------
@@ -349,15 +322,8 @@ function MyRequestsPanel({ requests }: { requests: MaterialRequest[] }) {
         {requests.map((req) => {
           const status = displayStatus(req)
           const cfg = REQUEST_STATUS[status]
-          const { Icon } = cfg
           return (
-            <div
-              key={req.id}
-              className={cn(
-                "flex items-center justify-between gap-3 rounded-md border-l-4 px-3 py-2",
-                cfg.row
-              )}
-            >
+            <StatusRow key={req.id} tone={cfg.tone}>
               <div className="flex flex-col">
                 <span className="text-sm font-medium">
                   {formatQty(req.quantity)} {req.unit} — {req.material_name}
@@ -368,11 +334,8 @@ function MyRequestsPanel({ requests }: { requests: MaterialRequest[] }) {
                     ` · ${formatQty(req.quantity_issued)} ${req.unit} received so far, ${formatQty(req.quantity_remaining)} ${req.unit} still owed`}
                 </span>
               </div>
-              <Badge className={cn("gap-1", cfg.badge)}>
-                <Icon className="size-3" />
-                {cfg.label}
-              </Badge>
-            </div>
+              <StatusBadge tone={cfg.tone} label={cfg.label} icon={cfg.Icon} />
+            </StatusRow>
           )
         })}
       </CardContent>
@@ -384,6 +347,12 @@ function MyRequestsPanel({ requests }: { requests: MaterialRequest[] }) {
 // TaskCard
 // ---------------------------------------------------------------------------
 
+// Marking a stage done is permanent (no backend "undo" endpoint exists), so
+// the button requires two taps: the first arms a short confirm window, the
+// second (within it) actually fires the mutation. Arming auto-resets so a
+// stray second tap minutes later doesn't silently complete the stage.
+const CONFIRM_WINDOW_MS = 4000
+
 function TaskCard({
   stage,
   completing,
@@ -393,17 +362,34 @@ function TaskCard({
   completing: boolean
   onDone: () => void
 }) {
+  const [armed, setArmed] = useState(false)
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current)
+    }
+  }, [])
+
+  function handleClick() {
+    if (!armed) {
+      setArmed(true)
+      resetTimer.current = setTimeout(() => setArmed(false), CONFIRM_WINDOW_MS)
+      return
+    }
+    if (resetTimer.current) clearTimeout(resetTimer.current)
+    setArmed(false)
+    onDone()
+  }
+
   return (
-    <Card size="sm" className="gap-2 overflow-hidden border-l-4 border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20">
+    <Card size="sm" className={cn("gap-2 overflow-hidden border", statusRowTone("info"))}>
       <CardContent className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">
             {stage.order.reference_number}
           </span>
-          <Badge className="gap-1 border-transparent bg-blue-600 text-white dark:bg-blue-500">
-            <Hammer className="size-3" />
-            {stage.stage_name}
-          </Badge>
+          <StatusBadge tone="active" label={stage.stage_name} icon={Hammer} />
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{stage.order.item_description}</p>
@@ -412,12 +398,16 @@ function TaskCard({
 
         <div className="flex items-center gap-2">
           <Button
-            className="h-9 flex-1 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-            onClick={onDone}
+            className={cn(
+              "h-9 flex-1",
+              armed &&
+                "bg-orange-600 text-white hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600",
+            )}
+            onClick={handleClick}
             disabled={completing}
           >
             <CheckCircle2 data-icon="inline-start" />
-            {completing ? "Saving…" : "Mark done"}
+            {completing ? "Saving…" : armed ? "Tap again to confirm" : "Mark done"}
           </Button>
           <RequestMaterialDialog stage={stage} />
         </div>

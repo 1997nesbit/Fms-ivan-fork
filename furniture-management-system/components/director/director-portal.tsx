@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/shared/status"
 import {
   Dialog,
   DialogClose,
@@ -21,6 +21,7 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -165,12 +166,7 @@ function OrderPreviewDialog({
             <DialogTitle className="tabular-nums">
               {order.reference_number}
             </DialogTitle>
-            <Badge
-              variant="outline"
-              className="border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
-            >
-              Pending approval
-            </Badge>
+            <StatusBadge tone="warning" label="Pending approval" />
           </div>
         </DialogHeader>
 
@@ -543,44 +539,33 @@ export function DirectorPortal() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             Director Portal
           </h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
+          <p className="max-w-xl text-pretty text-muted-foreground">
             Approve customer pricing, review costs, manage payroll, oversee funds and track
             revenue.
           </p>
         </div>
       </div>
 
-      <div className="flex overflow-x-auto border-b border-border">
-        {(
-          [
-            { value: "queue",    label: "Approval queue" },
-            { value: "reports",  label: "Reports" },
-            { value: "funds",    label: "Funds" },
-          ] as { value: DirectorTab; label: string }[]
-        ).map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setTab(t.value)}
-            className={cn(
-              "flex shrink-0 items-center gap-1.5 px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors",
-              tab === t.value
-                ? "border-b-2 border-foreground text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t.label}
-            {t.value === "queue" && pendingCount > 0 && (
-              <span className="rounded-full bg-foreground/10 px-1.5 text-xs font-medium tabular-nums">
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as DirectorTab)} className="gap-6">
+        <div className="border-b border-border">
+          <TabsList variant="line" className="h-auto flex-wrap">
+            <TabsTrigger value="queue" className="gap-1.5">
+              Approval queue
+              {pendingCount > 0 && (
+                <span className="rounded-full bg-foreground/10 px-1.5 text-xs font-medium tabular-nums">
+                  {pendingCount}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="funds">Funds</TabsTrigger>
+          </TabsList>
+        </div>
 
-      {tab === "queue" && <ApprovalQueue />}
-      {tab === "reports" && <ReportsPortal />}
-      {tab === "funds" && <FundsApproval />}
+        <TabsContent value="queue"><ApprovalQueue /></TabsContent>
+        <TabsContent value="reports"><ReportsPortal /></TabsContent>
+        <TabsContent value="funds"><FundsApproval /></TabsContent>
+      </Tabs>
     </div>
   )
 }

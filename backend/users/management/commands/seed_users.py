@@ -26,6 +26,7 @@ USERS = [
     ("nancy",  "Nancy",  "",  "FRONT_DESK",   1, "", ""),
     ("tecla",  "Tecla",  "",  "OPS_MANAGER",  0, "", ""),
     ("allen",  "Allen",  "",  "TECHNICIAN",   0, "", ""),
+    ("Gidion", "Gidion", "",  "DIRECTOR",     0, "", "Gidion@123"),
 ]
 
 
