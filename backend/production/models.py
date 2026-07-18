@@ -8,8 +8,8 @@ class ProductionStage(models.Model):
         ACTIVE = "ACTIVE", "Active"
         DONE = "DONE", "Done"
 
-    order = models.ForeignKey(
-        "orders.Order", on_delete=models.CASCADE, related_name="stages"
+    item = models.ForeignKey(
+        "orders.OrderItem", on_delete=models.CASCADE, related_name="stages"
     )
     stage_name = models.CharField(max_length=200)
     sequence_number = models.PositiveSmallIntegerField()
@@ -28,14 +28,22 @@ class ProductionStage(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = [("order", "sequence_number")]
+        unique_together = [("item", "sequence_number")]
         ordering = ["sequence_number"]
         indexes = [
             models.Index(fields=["assigned_technician", "status"]),
         ]
 
     def __str__(self):
-        return f"{self.order.reference_number} — Stage {self.sequence_number}: {self.stage_name}"
+        return f"{self.item.order.reference_number} — Stage {self.sequence_number}: {self.stage_name}"
+
+    @property
+    def order(self):
+        """Proxies to this stage's item's order. Every existing
+        stage.order.<field> read in production/reports/stock keeps working
+        unchanged — only real ORM query paths (select_related, filter())
+        need to go through `item__order` instead."""
+        return self.item.order
 
 
 class TechnicianPayment(models.Model):

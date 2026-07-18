@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from branches.models import Branch
-from orders.models import Order
+from orders.models import Order, OrderItem
 
 from .models import ProductionStage
 
@@ -19,6 +19,42 @@ def _make_user(role, branch=None, username=None):
         role=role,
         branch=branch,
     )
+
+
+class ProductionStageItemTests(TestCase):
+    def setUp(self):
+        self.branch = Branch.objects.create(name="Main", location="Town")
+        self.front_desk = _make_user(User.Role.FRONT_DESK, self.branch)
+        self.technician = _make_user(User.Role.TECHNICIAN, self.branch, username="tech-item")
+        self.order = Order.objects.create(
+            reference_number="FMS-ITEM-0001",
+            branch=self.branch,
+            created_by=self.front_desk,
+            customer_name="Jane",
+            customer_phone="0700000000",
+        )
+        self.item = OrderItem.objects.create(order=self.order, name="Sofa")
+
+    def test_stage_order_property_proxies_to_item_order(self):
+        stage = ProductionStage.objects.create(
+            item=self.item, stage_name="Frame", sequence_number=1,
+            assigned_technician=self.technician,
+        )
+        self.assertEqual(stage.order, self.order)
+        self.assertEqual(stage.order.reference_number, "FMS-ITEM-0001")
+
+    def test_sequence_number_unique_per_item_not_per_order(self):
+        item2 = OrderItem.objects.create(order=self.order, name="Coffee Table")
+        ProductionStage.objects.create(
+            item=self.item, stage_name="Frame", sequence_number=1,
+            assigned_technician=self.technician,
+        )
+        # Same sequence_number=1 on a different item of the same order is fine.
+        ProductionStage.objects.create(
+            item=item2, stage_name="Cut", sequence_number=1,
+            assigned_technician=self.technician,
+        )
+        self.assertEqual(ProductionStage.objects.filter(item__order=self.order).count(), 2)
 
 
 class OpsQueueWorkflowTests(TestCase):
