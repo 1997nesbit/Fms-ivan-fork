@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db.models import Count, Sum, Q
 from django.utils.dateparse import parse_date
@@ -12,7 +12,7 @@ from production.models import ProductionStage, TechnicianPayment
 from shop.models import Sale, ShowroomItem
 from users.models import User
 
-from .models import Invoice, InvoiceLineItem
+from .models import Invoice, InvoiceLineItem, Payment
 
 _NOT_AUTHORIZED = "Not authorized."
 _REQUIRED = "This field is required."
@@ -50,6 +50,18 @@ def _invoice_payload(inv):
             for li in inv.line_items.all()
         ],
         "subtotal": str(inv.subtotal),
+        "payments": [
+            {
+                "id": p.id,
+                "amount": str(p.amount),
+                "note": p.note,
+                "recorded_by": p.recorded_by.get_full_name() or p.recorded_by.username,
+                "paid_at": p.paid_at.isoformat(),
+            }
+            for p in inv.payments.all()
+        ],
+        "total_paid": str(inv.total_paid),
+        "balance_remaining": str(inv.balance_remaining),
         "created_by": inv.created_by.get_full_name() or inv.created_by.username,
         "created_at": inv.created_at.isoformat(),
     }
@@ -75,7 +87,7 @@ class InvoiceListCreateView(APIView):
     def get(self, request):
         if request.user.role != DIRECTOR:
             return Response({"detail": _NOT_AUTHORIZED}, status=403)
-        invoices = Invoice.objects.select_related("branch", "order", "created_by").prefetch_related("line_items").order_by("-created_at")
+        invoices = Invoice.objects.select_related("branch", "order", "created_by").prefetch_related("line_items", "payments").order_by("-created_at")
         branch_id = request.query_params.get("branch_id")
         if branch_id:
             invoices = invoices.filter(branch_id=branch_id)
@@ -164,7 +176,7 @@ class InvoiceDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_invoice(self, pk):
-        return Invoice.objects.select_related("branch", "order", "created_by").prefetch_related("line_items").get(pk=pk)
+        return Invoice.objects.select_related("branch", "order", "created_by").prefetch_related("line_items", "payments").get(pk=pk)
 
     def get(self, request, pk):
         if request.user.role != DIRECTOR:
@@ -189,6 +201,44 @@ class InvoiceDetailView(APIView):
             inv.status = new_status
             inv.save(update_fields=["status", "updated_at"])
         return Response(_invoice_payload(inv))
+
+
+class LogPaymentView(APIView):
+    """POST /api/reports/invoices/<pk>/payments/ — Director logs a new
+    installment (advance, partial, or final) against an invoice. Body:
+    { "amount": <num>, "note": <str, optional> }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if request.user.role != DIRECTOR:
+            return Response({"detail": _NOT_AUTHORIZED}, status=403)
+
+        try:
+            inv = Invoice.objects.get(pk=pk)
+        except Invoice.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+
+        raw_amount = str(request.data.get("amount", "")).strip()
+        if not raw_amount:
+            return Response({"errors": {"amount": [_REQUIRED]}}, status=400)
+        try:
+            amount = Decimal(raw_amount)
+        except InvalidOperation:
+            return Response({"errors": {"amount": ["Enter a valid number."]}}, status=400)
+        if amount <= 0:
+            return Response({"errors": {"amount": ["Must be greater than zero."]}}, status=400)
+
+        Payment.objects.create(
+            invoice=inv,
+            amount=amount,
+            note=str(request.data.get("note", "")).strip(),
+            recorded_by=request.user,
+        )
+        inv.recompute_status()
+
+        inv = Invoice.objects.select_related("branch", "order", "created_by").prefetch_related("line_items", "payments").get(pk=pk)
+        return Response(_invoice_payload(inv), status=201)
 
 
 # ---------------------------------------------------------------------------

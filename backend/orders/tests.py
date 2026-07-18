@@ -95,6 +95,52 @@ class OrderCreateMultiItemTests(TestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("items", resp.data["errors"])
 
+    def test_create_order_auto_creates_invoice_with_advance_payment(self):
+        from reports.models import Invoice
+
+        payload = {
+            "customer_name": "Amina Yusuf",
+            "customer_phone": "+255700000000",
+            "delivery_date": "2026-08-01",
+            "advance_payment": "50000",
+            "items": json.dumps([
+                {"name": "Sofa", "quoted_price": "500000"},
+                {"name": "Coffee Table", "quoted_price": "150000"},
+            ]),
+        }
+        resp = self.client_api.post("/api/orders/", payload, format="multipart")
+        self.assertEqual(resp.status_code, 201, resp.data)
+
+        inv = Invoice.objects.get(order_id=resp.data["id"])
+        self.assertEqual(inv.line_items.count(), 2)
+        self.assertEqual(inv.subtotal, 650000)
+        self.assertEqual(inv.total_paid, 50000)
+        self.assertEqual(inv.status, Invoice.Status.PARTIALLY_PAID)
+
+    def test_confirm_price_syncs_invoice_line_items(self):
+        from reports.models import Invoice
+
+        payload = {
+            "customer_name": "Amina Yusuf",
+            "customer_phone": "+255700000000",
+            "delivery_date": "2026-08-01",
+            "items": json.dumps([{"name": "Sofa", "quoted_price": "500000"}]),
+            "requires_approval": "true",
+        }
+        resp = self.client_api.post("/api/orders/", payload, format="multipart")
+        order_id = resp.data["id"]
+        item_id = resp.data["items"][0]["id"]
+
+        self.client_api.force_authenticate(self.director)
+        self.client_api.patch(
+            f"/api/orders/{order_id}/confirm-price/",
+            {"items": [{"item_id": item_id, "confirmed_price": "480000"}]},
+            format="json",
+        )
+
+        inv = Invoice.objects.get(order_id=order_id)
+        self.assertEqual(inv.line_items.first().unit_price, 480000)
+
     def test_confirm_price_per_item_syncs_order_total(self):
         order = Order.objects.create(
             reference_number="FMS-TEST-0002",

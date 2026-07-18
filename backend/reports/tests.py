@@ -80,7 +80,7 @@ class LogPaymentViewTests(TestCase):
         )
         self.assertEqual(resp.status_code, 201, resp.data)
         self.assertEqual(resp.data["status"], "PARTIALLY_PAID")
-        self.assertEqual(resp.data["total_paid"], "40000")
+        self.assertEqual(Decimal(resp.data["total_paid"]), Decimal("40000"))
         self.assertEqual(len(resp.data["payments"]), 1)
 
     def test_non_director_forbidden_from_logging_payment(self):

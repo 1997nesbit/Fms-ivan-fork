@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from reports import services as invoice_services
 from users.models import User
 
 from .models import Order, OrderImage, OrderItem
@@ -84,7 +85,7 @@ def _parse_money(raw, field_name, errors):
 
 
 def _validate_order_data(request):
-    """Validate POST data and return (errors, items_data, delivery_date)."""
+    """Validate POST data and return (errors, items_data, delivery_date, advance_payment)."""
     data = request.data
     errors: dict[str, list[str]] = {}
 
@@ -117,10 +118,12 @@ def _validate_order_data(request):
         except ValueError:
             errors["delivery_date"] = ["Enter a valid date (YYYY-MM-DD)."]
 
+    advance_payment = _parse_money(data.get("advance_payment", ""), "advance_payment", errors)
+
     if not request.user.branch_id:
         errors["non_field"] = ["Your account has no branch assigned."]
 
-    return errors, items_data, delivery_date
+    return errors, items_data, delivery_date, advance_payment
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +170,7 @@ class OrderListCreateView(APIView):
         if request.user.role != User.Role.FRONT_DESK:
             return Response({"detail": "Front Desk role required."}, status=403)
 
-        errors, items_data, delivery_date = _validate_order_data(request)
+        errors, items_data, delivery_date, advance_payment = _validate_order_data(request)
         if errors:
             return Response({"errors": errors}, status=400)
 
@@ -209,6 +212,7 @@ class OrderListCreateView(APIView):
                                 uploaded_by=request.user,
                             )
                     order.sync_from_items()
+                    invoice_services.create_invoice_for_order(order, request.user, advance_payment)
                 break
             except IntegrityError:
                 if attempt == 4:
@@ -279,6 +283,7 @@ class OrderConfirmPriceView(APIView):
                 item.save(update_fields=["confirmed_price"])
             order.sync_from_items()
             order.refresh_from_db()
+            invoice_services.sync_invoice_line_items(order)
             if order.confirmed_price is not None:
                 order.status = Order.Status.OPS_QUEUE
                 order.save(update_fields=["status", "updated_at"])
