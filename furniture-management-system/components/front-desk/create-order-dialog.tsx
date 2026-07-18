@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { ImagePlus, Loader2, Plus, X } from "lucide-react"
+import { ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import api from "@/lib/api"
@@ -39,12 +39,32 @@ interface ImagePreview {
   url: string
 }
 
+interface ItemDraft {
+  id: string
+  name: string
+  notes: string
+  measurements: string
+  quotedPrice: string
+  images: ImagePreview[]
+}
+
 type FieldErrors = Record<string, string[]>
 
 const today = () => new Date().toISOString().slice(0, 10)
 
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024 // 8MB
+
+function newItem(): ItemDraft {
+  return {
+    id: `${Date.now()}-${Math.random()}`,
+    name: "",
+    notes: "",
+    measurements: "",
+    quotedPrice: "",
+    images: [],
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -53,34 +73,43 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024 // 8MB
 export function CreateOrderDialog() {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [customerName, setCustomerName]         = useState("")
   const [contact, setContact]                   = useState("")
-  const [furnitureType, setFurnitureType]       = useState("")
-  const [size, setSize]                         = useState("")
-  const [quotedPrice, setQuotedPrice]           = useState("")
   const [expectedDelivery, setExpectedDelivery] = useState("")
-  const [notes, setNotes]                       = useState("")
+  const [advancePayment, setAdvancePayment]     = useState("")
   const [requiresApproval, setRequiresApproval] = useState(false)
-  const [images, setImages]                     = useState<ImagePreview[]>([])
-  const [dragActive, setDragActive]             = useState(false)
+  const [items, setItems]                       = useState<ItemDraft[]>([newItem()])
   const [fieldErrors, setFieldErrors]           = useState<FieldErrors>({})
 
   function resetForm() {
     setCustomerName("")
     setContact("")
-    setFurnitureType("")
-    setSize("")
-    setQuotedPrice("")
     setExpectedDelivery("")
-    setNotes("")
+    setAdvancePayment("")
     setRequiresApproval(false)
-    setImages([])
+    setItems([newItem()])
     setFieldErrors({})
   }
 
-  function addImages(files: FileList | null) {
+  function updateItem(id: string, patch: Partial<ItemDraft>) {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)))
+  }
+
+  function addItem() {
+    setItems((prev) => [...prev, newItem()])
+  }
+
+  function removeItem(id: string) {
+    setItems((prev) => {
+      const removed = prev.find((it) => it.id === id)
+      removed?.images.forEach((img) => URL.revokeObjectURL(img.url))
+      const next = prev.filter((it) => it.id !== id)
+      return next.length > 0 ? next : [newItem()]
+    })
+  }
+
+  function addImagesToItem(id: string, files: FileList | null) {
     if (!files) return
 
     const accepted: File[] = []
@@ -108,15 +137,20 @@ export function CreateOrderDialog() {
       file,
       url: URL.createObjectURL(file),
     }))
-    setImages((prev) => [...prev, ...previews])
+    setItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, images: [...it.images, ...previews] } : it))
+    )
   }
 
-  function removeImage(id: string) {
-    setImages((prev) => {
-      const removed = prev.find((img) => img.id === id)
-      if (removed) URL.revokeObjectURL(removed.url)
-      return prev.filter((img) => img.id !== id)
-    })
+  function removeImageFromItem(itemId: string, imageId: string) {
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== itemId) return it
+        const removed = it.images.find((img) => img.id === imageId)
+        if (removed) URL.revokeObjectURL(removed.url)
+        return { ...it, images: it.images.filter((img) => img.id !== imageId) }
+      })
+    )
   }
 
   const create = useMutation({
@@ -124,23 +158,29 @@ export function CreateOrderDialog() {
       const form = new FormData()
       form.append("customer_name", customerName.trim())
       form.append("customer_phone", contact.trim())
-      form.append(
-        "item_description",
-        size.trim() ? `${furnitureType.trim()} — ${size.trim()}` : furnitureType.trim()
-      )
-      if (quotedPrice) form.append("quoted_price", quotedPrice)
       form.append("delivery_date", expectedDelivery)
-      if (notes.trim()) form.append("notes", notes.trim())
       form.append("requires_approval", String(requiresApproval))
-      for (const img of images) form.append("images", img.file)
+      if (advancePayment) form.append("advance_payment", advancePayment)
+
+      const itemsJson = items.map((it) => ({
+        name: it.name.trim(),
+        notes: it.notes.trim(),
+        measurements: it.measurements.trim(),
+        quoted_price: it.quotedPrice || undefined,
+      }))
+      form.append("items", JSON.stringify(itemsJson))
+      items.forEach((it, i) => {
+        it.images.forEach((img) => form.append(`item_images_${i}`, img.file))
+      })
+
       return api.post("/orders/", form)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] })
       toast.success("Order created", {
         description: requiresApproval
-          ? `${furnitureType} sent for Director approval.`
-          : `${furnitureType} added to the ops queue.`,
+          ? "Sent for Director approval."
+          : `${items.length} item${items.length !== 1 ? "s" : ""} added to the ops queue.`,
       })
       resetForm()
       setOpen(false)
@@ -159,18 +199,16 @@ export function CreateOrderDialog() {
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
       <DialogTrigger render={<Button><Plus data-icon="inline-start" />New Order</Button>} />
 
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create new order</DialogTitle>
           <DialogDescription>
-            Capture the customer&apos;s details and quote. The order goes straight
-            to the ops queue unless Director price approval is needed.
+            Capture the customer&apos;s details, then add every item for this order.
+            The batch goes straight to the ops queue unless Director price approval is needed.
           </DialogDescription>
         </DialogHeader>
 
-        <form
-          onSubmit={(e) => { e.preventDefault(); create.mutate() }}
-        >
+        <form onSubmit={(e) => { e.preventDefault(); create.mutate() }}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="customerName">Customer name</FieldLabel>
@@ -196,43 +234,91 @@ export function CreateOrderDialog() {
               <FieldError errors={fieldErrors.customer_phone?.map((m) => ({ message: m }))} />
             </Field>
 
-            <Field orientation="responsive">
-              <Field>
-                <FieldLabel htmlFor="furnitureType">Furniture type</FieldLabel>
-                <Input
-                  id="furnitureType"
-                  required
-                  value={furnitureType}
-                  onChange={(e) => setFurnitureType(e.target.value)}
-                  placeholder="e.g. 6-Seater Dining Table"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="size">Size / dimensions</FieldLabel>
-                <Input
-                  id="size"
-                  value={size}
-                  onChange={(e) => setSize(e.target.value)}
-                  placeholder="e.g. 180 × 90 × 76 cm"
-                />
-              </Field>
-            </Field>
-            <FieldError errors={fieldErrors.item_description?.map((m) => ({ message: m }))} />
+            {fieldErrors.items && (
+              <p className="text-sm text-destructive">{fieldErrors.items[0]}</p>
+            )}
 
-            <Field>
-              <FieldLabel htmlFor="quotedPrice">Quoted customer price</FieldLabel>
-              <Input
-                id="quotedPrice"
-                type="number"
-                min="0"
-                step="1"
-                inputMode="numeric"
-                value={quotedPrice}
-                onChange={(e) => setQuotedPrice(e.target.value.replace(/\D/g, ""))}
-                placeholder="0"
-              />
-              <FieldError errors={fieldErrors.quoted_price?.map((m) => ({ message: m }))} />
-            </Field>
+            <div className="flex flex-col gap-4">
+              {items.map((item, index) => (
+                <div key={item.id} className="rounded-lg border border-border p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-medium">Item {index + 1}</span>
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.id)}
+                        aria-label={`Remove item ${index + 1}`}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <FieldGroup>
+                    <Field orientation="responsive">
+                      <Field>
+                        <FieldLabel htmlFor={`name-${item.id}`}>Item name</FieldLabel>
+                        <Input
+                          id={`name-${item.id}`}
+                          required
+                          value={item.name}
+                          onChange={(e) => updateItem(item.id, { name: e.target.value })}
+                          placeholder="e.g. 6-Seater Dining Table"
+                        />
+                        <FieldError errors={fieldErrors[`items[${index}].name`]?.map((m) => ({ message: m }))} />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor={`measurements-${item.id}`}>Measurements</FieldLabel>
+                        <Input
+                          id={`measurements-${item.id}`}
+                          value={item.measurements}
+                          onChange={(e) => updateItem(item.id, { measurements: e.target.value })}
+                          placeholder="e.g. 180 × 90 × 76 cm"
+                        />
+                      </Field>
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor={`notes-${item.id}`}>Brief notes</FieldLabel>
+                      <Textarea
+                        id={`notes-${item.id}`}
+                        value={item.notes}
+                        onChange={(e) => updateItem(item.id, { notes: e.target.value })}
+                        placeholder="Fabric, finish, any workshop-specific detail…"
+                        rows={2}
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor={`price-${item.id}`}>Quoted price</FieldLabel>
+                      <Input
+                        id={`price-${item.id}`}
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        value={item.quotedPrice}
+                        onChange={(e) => updateItem(item.id, { quotedPrice: e.target.value.replace(/\D/g, "") })}
+                        placeholder="0"
+                      />
+                      <FieldError errors={fieldErrors[`items[${index}].quoted_price`]?.map((m) => ({ message: m }))} />
+                    </Field>
+
+                    <ItemPhotoField
+                      item={item}
+                      onAdd={(files) => addImagesToItem(item.id, files)}
+                      onRemove={(imageId) => removeImageFromItem(item.id, imageId)}
+                    />
+                  </FieldGroup>
+                </div>
+              ))}
+            </div>
+
+            <Button type="button" variant="outline" onClick={addItem} className="self-start">
+              <Plus data-icon="inline-start" />
+              Add another item
+            </Button>
 
             <Field>
               <FieldLabel htmlFor="expectedDelivery">Expected delivery</FieldLabel>
@@ -248,71 +334,20 @@ export function CreateOrderDialog() {
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="notes">Notes (optional)</FieldLabel>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any extra detail for the workshop or Director…"
-                rows={3}
+              <FieldLabel htmlFor="advancePayment">Advance payment received (optional)</FieldLabel>
+              <Input
+                id="advancePayment"
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                value={advancePayment}
+                onChange={(e) => setAdvancePayment(e.target.value.replace(/\D/g, ""))}
+                placeholder="0"
               />
-              <FieldError errors={fieldErrors.notes?.map((m) => ({ message: m }))} />
+              <FieldDescription>Recorded as the first payment on this order&apos;s invoice.</FieldDescription>
             </Field>
 
-            {/* Image upload */}
-            <Field>
-              <FieldLabel htmlFor="reference-upload">Reference photos</FieldLabel>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
-                onDragLeave={() => setDragActive(false)}
-                onDrop={(e) => { e.preventDefault(); setDragActive(false); addImages(e.dataTransfer.files) }}
-                className={cn(
-                  "flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-muted/40 px-4 py-6 text-center transition-colors hover:bg-muted/70",
-                  dragActive && "border-primary bg-primary/5"
-                )}
-              >
-                <span className="flex size-9 items-center justify-center rounded-full bg-accent text-accent-foreground">
-                  <ImagePlus className="size-4" />
-                </span>
-                <span className="text-sm font-medium">Drag &amp; drop or click to add photos</span>
-                <span className="text-xs text-muted-foreground">JPEG, PNG, WEBP</span>
-              </button>
-              <input
-                ref={fileInputRef}
-                id="reference-upload"
-                type="file"
-                accept="image/*"
-                multiple
-                className="sr-only"
-                onChange={(e) => addImages(e.target.files)}
-              />
-
-              {images.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {images.map((img) => (
-                    <div
-                      key={img.id}
-                      className="group relative size-16 overflow-hidden rounded-md border border-border bg-muted"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.url} alt={img.file.name} className="size-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(img.id)}
-                        aria-label={`Remove ${img.file.name}`}
-                        className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-foreground/70 text-background opacity-80 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Field>
-
-            {/* Approval checkbox */}
             <FieldLabel className="rounded-lg border border-border p-3">
               <Checkbox
                 checked={requiresApproval}
@@ -341,5 +376,75 @@ export function CreateOrderDialog() {
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Per-item photo field
+// ---------------------------------------------------------------------------
+
+function ItemPhotoField({
+  item,
+  onAdd,
+  onRemove,
+}: {
+  item: ItemDraft
+  onAdd: (files: FileList | null) => void
+  onRemove: (imageId: string) => void
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [dragActive, setDragActive] = useState(false)
+
+  return (
+    <Field>
+      <FieldLabel htmlFor={`upload-${item.id}`}>Reference photos</FieldLabel>
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={(e) => { e.preventDefault(); setDragActive(false); onAdd(e.dataTransfer.files) }}
+        className={cn(
+          "flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-muted/40 px-4 py-4 text-center transition-colors hover:bg-muted/70",
+          dragActive && "border-primary bg-primary/5"
+        )}
+      >
+        <span className="flex size-8 items-center justify-center rounded-full bg-accent text-accent-foreground">
+          <ImagePlus className="size-4" />
+        </span>
+        <span className="text-xs font-medium">Drag &amp; drop or click to add photos for this item</span>
+      </button>
+      <input
+        ref={fileInputRef}
+        id={`upload-${item.id}`}
+        type="file"
+        accept="image/*"
+        multiple
+        className="sr-only"
+        onChange={(e) => onAdd(e.target.files)}
+      />
+
+      {item.images.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {item.images.map((img) => (
+            <div
+              key={img.id}
+              className="group relative size-16 overflow-hidden rounded-md border border-border bg-muted"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.url} alt={img.file.name} className="size-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onRemove(img.id)}
+                aria-label={`Remove ${img.file.name}`}
+                className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-foreground/70 text-background opacity-80 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Field>
   )
 }
