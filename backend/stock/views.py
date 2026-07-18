@@ -48,7 +48,7 @@ def _material_request_payload(req):
     return {
         "id": req.id,
         "stage_id": req.stage_id,
-        "order_id": req.stage.order_id if req.stage else None,
+        "order_id": req.stage.item.order_id if req.stage else None,
         "order_reference": req.stage.order.reference_number if req.stage else None,
         "material_name": req.material_name,
         "quantity": str(req.quantity),
@@ -307,7 +307,7 @@ class MaterialRequestListCreateView(APIView):
 
     def get(self, request):
         qs = MaterialRequest.objects.select_related(
-            "stage__order", "requested_by", "reviewed_by"
+            "stage__item", "stage__item__order", "requested_by", "reviewed_by"
         ).order_by("-created_at")
 
         if request.user.role == User.Role.TECHNICIAN:
@@ -372,7 +372,7 @@ class MaterialRequestListCreateView(APIView):
             unit=unit,
         )
         req = MaterialRequest.objects.select_related(
-            "stage__order", "requested_by", "reviewed_by"
+            "stage__item", "stage__item__order", "requested_by", "reviewed_by"
         ).get(pk=req.pk)
         return Response(_material_request_payload(req), status=201)
 
@@ -391,7 +391,7 @@ class MaterialRequestReviewView(APIView):
 
         try:
             req = MaterialRequest.objects.select_related(
-                "stage__order", "requested_by", "reviewed_by"
+                "stage__item", "stage__item__order", "requested_by", "reviewed_by"
             ).get(pk=pk, status=MaterialRequest.Status.PENDING)
         except MaterialRequest.DoesNotExist:
             return Response({"detail": "Pending request not found."}, status=404)

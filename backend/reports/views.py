@@ -377,13 +377,13 @@ class ProductionCostReportView(APIView):
         date_from, date_to = _parse_date_params(request)
         branch_id = request.query_params.get("branch_id")
 
-        payments_qs = TechnicianPayment.objects.select_related("stage", "stage__order", "technician")
+        payments_qs = TechnicianPayment.objects.select_related("stage", "stage__item", "stage__item__order", "technician")
         if date_from:
             payments_qs = payments_qs.filter(created_at__date__gte=date_from)
         if date_to:
             payments_qs = payments_qs.filter(created_at__date__lte=date_to)
         if branch_id:
-            payments_qs = payments_qs.filter(stage__order__branch_id=branch_id)
+            payments_qs = payments_qs.filter(stage__item__order__branch_id=branch_id)
 
         # Group by stage name
         by_stage: dict[str, dict] = {}
@@ -667,7 +667,7 @@ class IndividualTechnicianPayReportView(APIView):
 
         payments_qs = TechnicianPayment.objects.filter(
             technician_id=technician_id
-        ).select_related("stage", "stage__order")
+        ).select_related("stage", "stage__item", "stage__item__order")
         if date_from:
             payments_qs = payments_qs.filter(created_at__date__gte=date_from)
         if date_to:

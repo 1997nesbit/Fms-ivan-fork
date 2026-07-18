@@ -6,7 +6,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from branches.models import Branch
-from orders.models import Order
+from orders.models import Order, OrderItem
 from production.models import ProductionStage
 from users.models import AuditLog
 
@@ -148,8 +148,9 @@ def _make_stage(order, technician, sequence_number=1):
         cursor.execute(
             "ALTER TABLE production_productionstage ALTER COLUMN agreed_wage DROP NOT NULL"
         )
+    item = OrderItem.objects.create(order=order, name="Assembly Item")
     return ProductionStage.objects.create(
-        order=order,
+        item=item,
         stage_name="Assembly",
         sequence_number=sequence_number,
         assigned_technician=technician,

@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from orders.models import Order
+from orders.models import Order, OrderItem
 from users.models import User
 
 from .models import ProductionStage, TechnicianPayment
@@ -30,7 +30,7 @@ def _stage_payload(stage):
             "id": order.id,
             "reference_number": order.reference_number,
             "customer_name": order.customer_name,
-            "item_description": order.item_description,
+            "item_description": stage.item.name,
             "delivery_date": str(order.delivery_date) if order.delivery_date else None,
         },
     }
@@ -50,7 +50,7 @@ class MyQueueView(APIView):
                 assigned_technician=request.user,
                 status__in=[ProductionStage.Status.PENDING, ProductionStage.Status.ACTIVE],
             )
-            .select_related("order")
+            .select_related("item", "item__order")
             .order_by(
                 # ACTIVE before PENDING, then by delivery date, then by position
                 Case(
@@ -58,7 +58,7 @@ class MyQueueView(APIView):
                     default=1,
                     output_field=IntegerField(),
                 ),
-                "order__delivery_date",
+                "item__order__delivery_date",
                 "sequence_number",
             )
         )
@@ -76,7 +76,7 @@ class MyEarningsView(APIView):
         payments = (
             TechnicianPayment.objects
             .filter(technician=request.user)
-            .select_related("stage", "stage__order")
+            .select_related("stage", "stage__item", "stage__item__order")
             .order_by("-created_at")
         )
         return Response([
@@ -86,7 +86,7 @@ class MyEarningsView(APIView):
                 "status": p.status,
                 "stage_name": p.stage.stage_name,
                 "order_reference": p.stage.order.reference_number,
-                "order_description": p.stage.order.item_description,
+                "order_description": p.stage.item.name,
                 "settled_at": p.settled_at.isoformat() if p.settled_at else None,
                 "created_at": p.created_at.isoformat(),
             }
@@ -104,7 +104,7 @@ class PaymentListView(APIView):
 
         payments = (
             TechnicianPayment.objects
-            .select_related("technician", "stage", "stage__order")
+            .select_related("technician", "stage", "stage__item", "stage__item__order")
             .order_by("-created_at")
         )
         return Response([
@@ -167,6 +167,20 @@ class SettlePaymentsView(APIView):
         return Response({"ok": True, "settled_count": settled_count})
 
 
+def _maybe_complete_order(order):
+    """An order is workshop-complete once every one of its items has at
+    least one stage and every stage on every item is DONE."""
+    items = list(order.items.prefetch_related("stages").all())
+    if not items:
+        return
+    for item in items:
+        stages = list(item.stages.all())
+        if not stages or any(s.status != ProductionStage.Status.DONE for s in stages):
+            return
+    order.status = Order.Status.WORKSHOP_COMPLETE
+    order.save(update_fields=["status", "updated_at"])
+
+
 class CompleteStageView(APIView):
     """POST /api/production/stages/<pk>/complete/ — mark own ACTIVE stage as DONE."""
     permission_classes = [IsAuthenticated]
@@ -188,11 +202,11 @@ class CompleteStageView(APIView):
             stage.completed_at = now
             stage.save(update_fields=["status", "completed_at"])
 
-            # Activate the next stage in this order's sequence
+            # Activate the next stage in this item's own sequence.
             next_stage = (
                 ProductionStage.objects
                 .filter(
-                    order=stage.order,
+                    item=stage.item,
                     sequence_number=stage.sequence_number + 1,
                     status=ProductionStage.Status.PENDING,
                 )
@@ -203,9 +217,7 @@ class CompleteStageView(APIView):
                 next_stage.activated_at = now
                 next_stage.save(update_fields=["status", "activated_at"])
             else:
-                # Last stage in the order — workshop is done.
-                stage.order.status = Order.Status.WORKSHOP_COMPLETE
-                stage.order.save(update_fields=["status", "updated_at"])
+                _maybe_complete_order(stage.item.order)
 
             # Every completed stage earns its own technician a payment.
             TechnicianPayment.objects.create(
@@ -219,7 +231,7 @@ class CompleteStageView(APIView):
 
 
 # ---------------------------------------------------------------------------
-# Ops Manager: ops queue, pipeline, stage assignment, wages, start work
+# Ops Manager: ops queue, pipeline, per-item stage assignment, wages, start work
 # ---------------------------------------------------------------------------
 
 def _stage_prefetch():
@@ -231,21 +243,32 @@ def _stage_prefetch():
     )
 
 
+def _item_prefetch():
+    return Prefetch(
+        "items",
+        queryset=OrderItem.objects.prefetch_related(_stage_prefetch()).order_by("id"),
+    )
+
+
 def _ops_orders_qs(status):
     return (
         Order.objects.filter(status=status)
-        .prefetch_related(_stage_prefetch())
+        .prefetch_related(_item_prefetch())
         .order_by("delivery_date")
     )
 
 
 def _refetch_order(pk):
-    """Re-fetch a single order with the same stage prefetch as the list
-    views, so a mutation's response payload never triggers N+1 queries."""
-    return Order.objects.prefetch_related(_stage_prefetch()).get(pk=pk)
+    """Re-fetch a single order with the same item/stage prefetch as the
+    list views, so a mutation's response payload never triggers N+1 queries."""
+    return Order.objects.prefetch_related(_item_prefetch()).get(pk=pk)
 
 
-def _ops_stage_payload(stage, order):
+def _refetch_item(pk):
+    return OrderItem.objects.prefetch_related(_stage_prefetch()).select_related("order").get(pk=pk)
+
+
+def _ops_stage_payload(stage):
     tech = stage.assigned_technician
     payment_status = stage.payment.status if hasattr(stage, "payment") else None
     return {
@@ -261,17 +284,32 @@ def _ops_stage_payload(stage, order):
         "payment_status": payment_status,
         "activated_at": stage.activated_at.isoformat() if stage.activated_at else None,
         "completed_at": stage.completed_at.isoformat() if stage.completed_at else None,
-        "order": {
-            "id": order.id,
-            "reference_number": order.reference_number,
-            "customer_name": order.customer_name,
-            "item_description": order.item_description,
-            "delivery_date": str(order.delivery_date) if order.delivery_date else None,
-        },
+    }
+
+
+def _ops_item_payload(item):
+    return {
+        "id": item.id,
+        "name": item.name,
+        "notes": item.notes,
+        "measurements": item.measurements,
+        "stages": [_ops_stage_payload(s) for s in item.stages.all()],
     }
 
 
 def _ops_order_payload(order):
+    items = list(order.items.all())
+    all_stages = [
+        {**_ops_stage_payload(s), "order": {
+            "id": order.id,
+            "reference_number": order.reference_number,
+            "customer_name": order.customer_name,
+            "item_description": item.name,
+            "delivery_date": str(order.delivery_date) if order.delivery_date else None,
+        }}
+        for item in items
+        for s in item.stages.all()
+    ]
     return {
         "id": order.id,
         "reference_number": order.reference_number,
@@ -281,7 +319,12 @@ def _ops_order_payload(order):
         "delivery_date": str(order.delivery_date) if order.delivery_date else None,
         "status": order.status,
         "created_at": order.created_at.isoformat(),
-        "stages": [_ops_stage_payload(s, order) for s in order.stages.all()],
+        "items": [_ops_item_payload(item) for item in items],
+        # Flattened union of every item's stages, kept for consumers that
+        # only need order-wide stage counts/technician grouping
+        # (scheduling-board.tsx, assignments-manager.tsx) and don't need
+        # per-item breakdown.
+        "stages": all_stages,
     }
 
 
@@ -310,28 +353,29 @@ class PipelineView(APIView):
         return Response([_ops_order_payload(o) for o in orders])
 
 
-class AssignStagesView(APIView):
-    """POST /api/production/orders/<pk>/assign-stages/
+class AssignItemStagesView(APIView):
+    """POST /api/production/items/<item_id>/assign-stages/
     Body: [{stage_name, technician_id, allotted_time}, ...]
 
-    Replaces the order's production plan wholesale. Safe because an order
-    sitting in OPS_QUEUE never has stages beyond PENDING — nothing has
-    started yet, so there's nothing to lose by re-planning it.
+    Replaces one item's production plan wholesale. Safe because an item
+    whose order is still in OPS_QUEUE never has stages beyond PENDING.
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, pk):
+    def post(self, request, item_id):
         if request.user.role != User.Role.OPS_MANAGER:
             return Response({"detail": "Operations Manager role required."}, status=403)
 
         try:
-            order = Order.objects.get(pk=pk, status=Order.Status.OPS_QUEUE)
-        except Order.DoesNotExist:
-            return Response({"detail": "Order not found or not in the ops queue."}, status=404)
+            item = OrderItem.objects.select_related("order").get(
+                pk=item_id, order__status=Order.Status.OPS_QUEUE
+            )
+        except OrderItem.DoesNotExist:
+            return Response({"detail": "Item not found or its order isn't in the ops queue."}, status=404)
 
-        if order.stages.exclude(status=ProductionStage.Status.PENDING).exists():
+        if item.stages.exclude(status=ProductionStage.Status.PENDING).exists():
             return Response(
-                {"detail": "This order's production plan has already started and can't be replaced."},
+                {"detail": "This item's production plan has already started and can't be replaced."},
                 status=400,
             )
 
@@ -354,22 +398,22 @@ class AssignStagesView(APIView):
                 return Response({"detail": f"Stage {i}: technician not found."}, status=404)
 
         with transaction.atomic():
-            order.stages.all().delete()
+            item.stages.all().delete()
             for i, row in enumerate(rows, start=1):
                 ProductionStage.objects.create(
-                    order=order,
+                    item=item,
                     stage_name=str(row["stage_name"]).strip(),
                     sequence_number=i,
                     assigned_technician=technician_map[row["technician_id"]],
                     allotted_time=str(row.get("allotted_time", "")).strip(),
                 )
 
-        order = _refetch_order(order.pk)
-        return Response(_ops_order_payload(order))
+        item = _refetch_item(item.pk)
+        return Response(_ops_item_payload(item))
 
 
-class SetWagesView(APIView):
-    """PATCH /api/production/orders/<pk>/set-wages/
+class SetItemWagesView(APIView):
+    """PATCH /api/production/items/<item_id>/set-wages/
     Body: [{stage_id, wage}, ...]
 
     Wages are whole numbers (no cents), matching how every other money
@@ -377,28 +421,30 @@ class SetWagesView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def patch(self, request, pk):
+    def patch(self, request, item_id):
         if request.user.role != User.Role.OPS_MANAGER:
             return Response({"detail": "Operations Manager role required."}, status=403)
 
         try:
-            order = Order.objects.get(pk=pk, status=Order.Status.OPS_QUEUE)
-        except Order.DoesNotExist:
-            return Response({"detail": "Order not found or not in the ops queue."}, status=404)
+            item = OrderItem.objects.select_related("order").get(
+                pk=item_id, order__status=Order.Status.OPS_QUEUE
+            )
+        except OrderItem.DoesNotExist:
+            return Response({"detail": "Item not found or its order isn't in the ops queue."}, status=404)
 
         rows = request.data
         if not isinstance(rows, list) or not rows:
             return Response({"detail": "Expected a non-empty list of wages."}, status=400)
 
         stages = {
-            s.id: s for s in order.stages.filter(id__in=[row.get("stage_id") for row in rows])
+            s.id: s for s in item.stages.filter(id__in=[row.get("stage_id") for row in rows])
         }
 
         updates = []
         for i, row in enumerate(rows, start=1):
             stage = stages.get(row.get("stage_id"))
             if stage is None:
-                return Response({"detail": f"Stage {i}: stage not found on this order."}, status=404)
+                return Response({"detail": f"Stage {i}: stage not found on this item."}, status=404)
             try:
                 wage = Decimal(str(row.get("wage", "")))
                 if wage < 0:
@@ -416,13 +462,15 @@ class SetWagesView(APIView):
                 stage.agreed_wage = wage
                 stage.save(update_fields=["agreed_wage"])
 
-        order = _refetch_order(order.pk)
-        return Response(_ops_order_payload(order))
+        item = _refetch_item(item.pk)
+        return Response(_ops_item_payload(item))
 
 
 class StartWorkView(APIView):
     """POST /api/production/orders/<pk>/start-work/
-    OPS_QUEUE -> IN_PRODUCTION, activates the first stage in sequence.
+    OPS_QUEUE -> IN_PRODUCTION. Activates the first stage of every item in
+    the order at once; each item then progresses independently as its
+    technicians complete stages.
     """
     permission_classes = [IsAuthenticated]
 
@@ -431,24 +479,29 @@ class StartWorkView(APIView):
             return Response({"detail": "Operations Manager role required."}, status=403)
 
         try:
-            order = Order.objects.get(pk=pk, status=Order.Status.OPS_QUEUE)
+            order = Order.objects.prefetch_related(_item_prefetch()).get(
+                pk=pk, status=Order.Status.OPS_QUEUE
+            )
         except Order.DoesNotExist:
             return Response({"detail": "Order not found or not in the ops queue."}, status=404)
 
-        stages = list(order.stages.order_by("sequence_number"))
-        if not stages:
-            return Response({"detail": "Assign at least one stage before starting work."}, status=400)
-        if any(s.agreed_wage is None for s in stages):
-            return Response({"detail": "Set a wage for every stage before starting work."}, status=400)
+        items = list(order.items.all())
+        if not items or any(not list(item.stages.all()) for item in items):
+            return Response({"detail": "Assign at least one stage to every item before starting work."}, status=400)
+        for item in items:
+            if any(s.agreed_wage is None for s in item.stages.all()):
+                return Response({"detail": "Set a wage for every stage before starting work."}, status=400)
 
         with transaction.atomic():
             order.status = Order.Status.IN_PRODUCTION
             order.save(update_fields=["status", "updated_at"])
 
-            first = stages[0]
-            first.status = ProductionStage.Status.ACTIVE
-            first.activated_at = timezone.now()
-            first.save(update_fields=["status", "activated_at"])
+            now = timezone.now()
+            for item in items:
+                first = min(item.stages.all(), key=lambda s: s.sequence_number)
+                first.status = ProductionStage.Status.ACTIVE
+                first.activated_at = now
+                first.save(update_fields=["status", "activated_at"])
 
         order = _refetch_order(order.pk)
         return Response(_ops_order_payload(order))
