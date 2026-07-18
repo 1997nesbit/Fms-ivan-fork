@@ -6,6 +6,7 @@ import { ClipboardList, Loader2, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import api from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -19,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import type { OpsOrder, Technician } from "@/components/operations/types"
+import type { OpsOrder, OrderItemPlan, Technician } from "@/components/operations/types"
 
 interface StageRow {
   stage_name: string
@@ -32,9 +33,9 @@ function blankRow(): StageRow {
   return { stage_name: "", technician_id: "", allotted_time: "", wage: "" }
 }
 
-function initRows(order: OpsOrder): StageRow[] {
-  if (order.stages.length > 0) {
-    return order.stages.map((s) => ({
+function initRows(item: OrderItemPlan): StageRow[] {
+  if (item.stages.length > 0) {
+    return item.stages.map((s) => ({
       stage_name: s.stage_name,
       technician_id: String(s.assigned_technician?.id ?? ""),
       allotted_time: s.allotted_time,
@@ -58,59 +59,67 @@ export function AssignStagesDialog({
   onOpenChange,
 }: AssignStagesDialogProps) {
   const queryClient = useQueryClient()
-  const [rows, setRows] = useState<StageRow[]>(() => initRows(order))
+  const [activeItemId, setActiveItemId] = useState<number>(order.items[0]?.id ?? 0)
+  const [rowsByItem, setRowsByItem] = useState<Record<number, StageRow[]>>(() =>
+    Object.fromEntries(order.items.map((it) => [it.id, initRows(it)]))
+  )
+
+  const activeItem = order.items.find((it) => it.id === activeItemId) ?? order.items[0]
+  const rows = rowsByItem[activeItemId] ?? [blankRow()]
+
+  function setRows(next: StageRow[]) {
+    setRowsByItem((prev) => ({ ...prev, [activeItemId]: next }))
+  }
 
   function updateRow(i: number, field: keyof StageRow, val: string) {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)))
+    setRows(rows.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)))
   }
 
   function addRow() {
-    setRows((prev) => [...prev, blankRow()])
+    setRows([...rows, blankRow()])
   }
 
   function removeRow(i: number) {
     if (rows.length === 1) return
-    setRows((prev) => prev.filter((_, idx) => idx !== i))
+    setRows(rows.filter((_, idx) => idx !== i))
   }
 
-  const allStagesValid =
-    rows.length > 0 &&
-    rows.every((r) => r.stage_name.trim().length > 0 && r.technician_id.length > 0)
+  const allStagesValid = (r: StageRow[]) =>
+    r.length > 0 && r.every((row) => row.stage_name.trim().length > 0 && row.technician_id.length > 0)
+  const allWagesSet = (r: StageRow[]) =>
+    r.length > 0 && r.every((row) => row.wage.trim().length > 0 && Number(row.wage) >= 0)
 
-  const allWagesSet =
-    rows.length > 0 && rows.every((r) => r.wage.trim().length > 0 && Number(r.wage) >= 0)
+  const everyItemReady = order.items.every(
+    (it) => allStagesValid(rowsByItem[it.id] ?? []) && allWagesSet(rowsByItem[it.id] ?? [])
+  )
 
-  async function savePlanRequest(): Promise<OpsOrder> {
-    // 1. Assign stages
-    const assignBody = rows.map((r) => ({
+  async function saveItemPlan(item: OrderItemPlan) {
+    const itemRows = rowsByItem[item.id] ?? []
+    const assignBody = itemRows.map((r) => ({
       stage_name: r.stage_name.trim(),
       technician_id: Number(r.technician_id),
       allotted_time: r.allotted_time || "00:00:00",
     }))
-    const { data: updatedOrder } = await api.post<OpsOrder>(
-      `/production/orders/${order.id}/assign-stages/`,
+    const { data: updatedItem } = await api.post<OrderItemPlan>(
+      `/production/items/${item.id}/assign-stages/`,
       assignBody
     )
-
-    // 2. Set wages using returned stage IDs
-    const wageBody = updatedOrder.stages.map((s, i) => ({
+    const wageBody = updatedItem.stages.map((s, i) => ({
       stage_id: s.id,
-      wage: rows[i]?.wage ?? "0",
+      wage: itemRows[i]?.wage ?? "0",
     }))
-    await api.patch(`/production/orders/${order.id}/set-wages/`, wageBody)
-
-    return updatedOrder
+    await api.patch(`/production/items/${item.id}/set-wages/`, wageBody)
   }
 
   const savePlan = useMutation({
-    mutationFn: savePlanRequest,
+    mutationFn: async () => {
+      for (const item of order.items) await saveItemPlan(item)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ops-queue"] })
       toast.success("Production plan saved.")
     },
-    onError: (err: {
-      response?: { data?: { errors?: Record<string, unknown>; detail?: string } }
-    }) => {
+    onError: (err: { response?: { data?: { detail?: string } } }) => {
       toast.error(err.response?.data?.detail ?? "Failed to save plan.")
     },
   })
@@ -119,7 +128,7 @@ export function AssignStagesDialog({
     mutationFn: async () => {
       // Always save the current plan + wages first, so Start Work works
       // whether or not "Save plan" was clicked beforehand.
-      await savePlanRequest()
+      for (const item of order.items) await saveItemPlan(item)
       await api.post(`/production/orders/${order.id}/start-work/`)
     },
     onSuccess: () => {
@@ -135,21 +144,24 @@ export function AssignStagesDialog({
     },
   })
 
-  const canStart = allStagesValid && allWagesSet
+  if (!activeItem) return null
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next)
-        if (next) setRows(initRows(order))
+        if (next) {
+          setRowsByItem(Object.fromEntries(order.items.map((it) => [it.id, initRows(it)])))
+          setActiveItemId(order.items[0]?.id ?? 0)
+        }
       }}
     >
       <DialogTrigger
         render={
           <Button size="sm">
             <ClipboardList data-icon="inline-start" />
-            {order.stages.length === 0 ? "Assign Stages" : "Edit Plan"}
+            {order.items.every((it) => it.stages.length === 0) ? "Assign Stages" : "Edit Plan"}
           </Button>
         }
       />
@@ -157,11 +169,36 @@ export function AssignStagesDialog({
         <DialogHeader>
           <DialogTitle>Plan production — {order.reference_number}</DialogTitle>
           <DialogDescription>
-            {order.item_description} for {order.customer_name}. Break the build
-            into stages, assign a technician, set a wage, and an allotted time
-            for each.
+            {order.customer_name}&apos;s order has {order.items.length} item
+            {order.items.length !== 1 ? "s" : ""}. Plan each item&apos;s stages
+            separately — items can go to different artisans and progress
+            independently once started.
           </DialogDescription>
         </DialogHeader>
+
+        {order.items.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 border-b border-border pb-3">
+            {order.items.map((it) => {
+              const ready = allStagesValid(rowsByItem[it.id] ?? []) && allWagesSet(rowsByItem[it.id] ?? [])
+              return (
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={() => setActiveItemId(it.id)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    it.id === activeItemId
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {it.name || "Untitled item"}
+                  {ready && " ✓"}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         <div className="flex flex-col gap-4">
           {rows.map((row, i) => (
@@ -174,7 +211,7 @@ export function AssignStagesDialog({
                   Stage {i + 1}
                   {i === 0 && (
                     <span className="ml-2 font-normal text-muted-foreground">
-                      first in the workflow
+                      first in {activeItem.name || "this item"}&apos;s workflow
                     </span>
                   )}
                 </span>
@@ -194,13 +231,13 @@ export function AssignStagesDialog({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <label
-                    htmlFor={`stage-name-${i}`}
+                    htmlFor={`stage-name-${activeItemId}-${i}`}
                     className="text-xs font-medium text-muted-foreground"
                   >
                     Stage name
                   </label>
                   <Input
-                    id={`stage-name-${i}`}
+                    id={`stage-name-${activeItemId}-${i}`}
                     placeholder="e.g. Frame Assembly"
                     value={row.stage_name}
                     onChange={(e) => updateRow(i, "stage_name", e.target.value)}
@@ -209,13 +246,13 @@ export function AssignStagesDialog({
 
                 <div className="flex flex-col gap-1.5">
                   <label
-                    htmlFor={`tech-${i}`}
+                    htmlFor={`tech-${activeItemId}-${i}`}
                     className="text-xs font-medium text-muted-foreground"
                   >
                     Technician
                   </label>
                   <select
-                    id={`tech-${i}`}
+                    id={`tech-${activeItemId}-${i}`}
                     className="h-9 rounded-md border border-input bg-background px-2 text-sm w-full"
                     value={row.technician_id}
                     onChange={(e) => updateRow(i, "technician_id", e.target.value)}
@@ -233,13 +270,13 @@ export function AssignStagesDialog({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <label
-                    htmlFor={`time-${i}`}
+                    htmlFor={`time-${activeItemId}-${i}`}
                     className="text-xs font-medium text-muted-foreground"
                   >
                     Allotted time
                   </label>
                   <Input
-                    id={`time-${i}`}
+                    id={`time-${activeItemId}-${i}`}
                     placeholder="e.g. 2 days"
                     value={row.allotted_time}
                     onChange={(e) => updateRow(i, "allotted_time", e.target.value)}
@@ -248,13 +285,13 @@ export function AssignStagesDialog({
 
                 <div className="flex flex-col gap-1.5">
                   <label
-                    htmlFor={`wage-${i}`}
+                    htmlFor={`wage-${activeItemId}-${i}`}
                     className="text-xs font-medium text-muted-foreground"
                   >
                     Agreed wage (TZS)
                   </label>
                   <Input
-                    id={`wage-${i}`}
+                    id={`wage-${activeItemId}-${i}`}
                     type="number"
                     min="0"
                     step="1"
@@ -275,7 +312,7 @@ export function AssignStagesDialog({
               onClick={addRow}
             >
               <Plus data-icon="inline-start" />
-              Add another stage
+              Add another stage to {activeItem.name || "this item"}
             </Button>
           </div>
         </div>
@@ -288,13 +325,13 @@ export function AssignStagesDialog({
           </DialogClose>
           <Button
             variant="outline"
-            disabled={!allStagesValid || savePlan.isPending}
+            disabled={savePlan.isPending}
             onClick={() => savePlan.mutate()}
           >
             {savePlan.isPending && <Loader2 className="size-4 animate-spin" />}
             Save plan
           </Button>
-          {canStart && (
+          {everyItemReady && (
             <Button
               disabled={startWork.isPending || savePlan.isPending}
               onClick={() => startWork.mutate()}

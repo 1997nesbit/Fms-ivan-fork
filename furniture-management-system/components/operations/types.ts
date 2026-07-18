@@ -23,6 +23,14 @@ export interface Stage {
   }
 }
 
+export interface OrderItemPlan {
+  id: number
+  name: string
+  notes: string
+  measurements: string
+  stages: Omit<Stage, "order">[]
+}
+
 export interface OpsOrder {
   id: number
   reference_number: string
@@ -32,6 +40,7 @@ export interface OpsOrder {
   delivery_date: string | null
   status: string
   created_at: string
+  items: OrderItemPlan[]
   stages: Stage[]
 }
 

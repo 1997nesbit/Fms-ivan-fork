@@ -109,7 +109,11 @@ export function OpsQueue() {
                       <span className="text-xs text-muted-foreground">{order.customer_phone}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="max-w-40 truncate">{order.item_description}</TableCell>
+                  <TableCell className="max-w-40 truncate">
+                    {order.items.length === 1
+                      ? order.items[0].name
+                      : `${order.items.length} items`}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
                     {formatDate(order.delivery_date)}
                   </TableCell>
