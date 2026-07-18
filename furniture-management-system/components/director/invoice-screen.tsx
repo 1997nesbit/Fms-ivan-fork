@@ -51,6 +51,14 @@ interface LineItem {
   total: string
 }
 
+interface Payment {
+  id: number
+  amount: string
+  note: string
+  recorded_by: string
+  paid_at: string
+}
+
 interface Invoice {
   id: number
   invoice_number: string
@@ -64,9 +72,12 @@ interface Invoice {
   due_date: string | null
   payment_terms: string
   notes: string
-  status: "DRAFT" | "ISSUED" | "PAID"
+  status: "DRAFT" | "ISSUED" | "PARTIALLY_PAID" | "PAID"
   line_items: LineItem[]
   subtotal: string
+  payments: Payment[]
+  total_paid: string
+  balance_remaining: string
   created_by: string
   created_at: string
 }
@@ -130,6 +141,7 @@ function formatDate(iso: string | null) {
 const STATUS_STYLES: Record<Invoice["status"], string> = {
   DRAFT:  "border-muted-foreground/30 text-muted-foreground",
   ISSUED: "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
+  PARTIALLY_PAID: "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
   PAID:   "border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300",
 }
 
@@ -615,6 +627,79 @@ function CreateInvoiceDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Log payment dialog
+// ---------------------------------------------------------------------------
+
+function LogPaymentDialog({
+  inv,
+  open,
+  onOpenChange,
+}: {
+  inv: Invoice
+  open: boolean
+  onOpenChange: (v: boolean) => void
+}) {
+  const qc = useQueryClient()
+  const [amount, setAmount] = useState("")
+  const [note, setNote] = useState("")
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post(`/reports/invoices/${inv.id}/payments/`, { amount, note })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] })
+      toast.success("Payment logged.")
+      setAmount("")
+      setNote("")
+      onOpenChange(false)
+    },
+    onError: () => toast.error("Failed to log payment."),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Log payment — {inv.invoice_number}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            Balance remaining: <span className="font-medium text-foreground">{formatMoney(inv.balance_remaining)}</span>
+          </p>
+          <Field>
+            <FieldLabel htmlFor="pay-amount">Amount (TZS)</FieldLabel>
+            <Input
+              id="pay-amount"
+              type="number"
+              min="1"
+              step="1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+              placeholder="0"
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="pay-note">Note (optional)</FieldLabel>
+            <Textarea id="pay-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Second installment, cash" />
+          </Field>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!amount || Number(amount) <= 0 || mutation.isPending}
+          >
+            {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+            Log payment
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Invoice detail / print dialog
 // ---------------------------------------------------------------------------
 
@@ -628,6 +713,7 @@ function InvoiceDetailDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const qc = useQueryClient()
+  const [payOpen, setPayOpen] = useState(false)
 
   const statusMutation = useMutation({
     mutationFn: async (status: Invoice["status"]) => {
@@ -666,7 +752,7 @@ function InvoiceDetailDialog({
           <div className="flex items-center justify-between">
             <DialogTitle>{inv.invoice_number}</DialogTitle>
             <Badge variant="outline" className={cn("text-xs", STATUS_STYLES[inv.status])}>
-              {inv.status}
+              {inv.status.replace("_", " ")}
             </Badge>
           </div>
         </DialogHeader>
@@ -711,9 +797,34 @@ function InvoiceDetailDialog({
                   <td colSpan={3} className="px-3 py-2 text-right font-bold">Total Due</td>
                   <td className="px-3 py-2 text-right font-bold tabular-nums">{formatMoney(inv.subtotal)}</td>
                 </tr>
+                <tr className="border-t border-border">
+                  <td colSpan={3} className="px-3 py-2 text-right text-muted-foreground">Paid</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatMoney(inv.total_paid)}</td>
+                </tr>
+                <tr className="border-t border-border">
+                  <td colSpan={3} className="px-3 py-2 text-right font-semibold">Balance remaining</td>
+                  <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatMoney(inv.balance_remaining)}</td>
+                </tr>
               </tfoot>
             </table>
           </div>
+
+          {inv.payments.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment history</p>
+              <div className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
+                {inv.payments.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between text-sm">
+                    <div>
+                      <span className="font-medium">{formatMoney(p.amount)}</span>
+                      {p.note && <span className="ml-2 text-muted-foreground">{p.note}</span>}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{formatDate(p.paid_at)} · {p.recorded_by}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {(inv.payment_terms || inv.notes) && (
             <div className="grid grid-cols-2 gap-4 rounded-lg bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
@@ -729,9 +840,9 @@ function InvoiceDetailDialog({
               Mark as Issued
             </Button>
           )}
-          {inv.status === "ISSUED" && (
-            <Button variant="outline" size="sm" onClick={() => statusMutation.mutate("PAID")} disabled={statusMutation.isPending}>
-              Mark as Paid
+          {inv.status !== "PAID" && (
+            <Button variant="outline" size="sm" onClick={() => setPayOpen(true)}>
+              Log payment
             </Button>
           )}
           <Button size="sm" onClick={handleDownload} className="gap-1.5">
@@ -741,6 +852,7 @@ function InvoiceDetailDialog({
         </DialogFooter>
       </DialogContent>
 
+      <LogPaymentDialog inv={inv} open={payOpen} onOpenChange={setPayOpen} />
     </Dialog>
   )
 }
